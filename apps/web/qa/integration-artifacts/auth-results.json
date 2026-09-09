@@ -1,0 +1,80 @@
+{
+  "date": "2026-09-06T04:50:33.793Z",
+  "origin": "http://127.0.0.1:4181/",
+  "checks": [
+    "真实PG账户注册且不自动登录",
+    "Cookie登录与资料PATCH",
+    "刷新后会话和显示名称保留",
+    "wb_session HttpOnly SameSite=Lax",
+    "登录/退出CSRF轮换",
+    "退出后me401",
+    "无音色禁用生成"
+  ],
+  "responses": [
+    {
+      "path": "/v1/config",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 401
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/register",
+      "status": 201
+    },
+    {
+      "path": "/v1/auth/login",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 503
+    },
+    {
+      "path": "/v1/voices",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/v1/config",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 503
+    },
+    {
+      "path": "/v1/voices",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/logout",
+      "status": 204
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    }
+  ],
+  "errors": []
+}

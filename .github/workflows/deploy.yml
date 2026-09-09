@@ -1,0 +1,71 @@
+name: Validate, build and deploy VPS
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: production-vps
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: workbench
+          POSTGRES_PASSWORD: isolated_ci_password
+          POSTGRES_DB: workbench
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U workbench" --health-interval 5s
+          --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Validate contract and real database integration
+        env:
+          TEST_DATABASE_URL: postgresql://workbench:isolated_ci_password@127.0.0.1:5432/workbench
+        run: |
+          npm ci
+          npm run contract:validate
+          node scripts/verify-packages.mjs
+          node scripts/verify-deployment.mjs
+          npm --prefix apps/api ci
+          npm --prefix apps/api test
+          npm --prefix apps/web ci
+          npm --prefix apps/web run check:api
+          npm --prefix apps/web run build
+      - name: Build and push immutable application
+        id: image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --push --tag "$registry:$GITHUB_SHA" --metadata-file image.json .
+          digest=$(jq -r '."containerimage.digest"' image.json)
+          echo "ref=$registry@$digest" >> "$GITHUB_OUTPUT"
+      - name: Remote Compose deployment
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/tts-workbench' }}
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          [[ "$DEPLOY_DIR" =~ ^/[A-Za-z0-9/_-]+$ && "$DEPLOY_DIR" != / ]]
+          [[ "$VPS_USER" =~ ^[a-zA-Z0-9_-]+$ && "$VPS_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          release="$DEPLOY_DIR/releases/$GITHUB_SHA"
+          ssh -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "mkdir -p '$release'"
+          scp -o StrictHostKeyChecking=yes compose.yaml "$VPS_USER@$VPS_HOST:$release/compose.yaml"
+          ssh -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" bash -s -- "$DEPLOY_DIR" "$IMAGE_REF" "$GITHUB_SHA" < deploy/scripts/deploy.sh

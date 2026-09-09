@@ -1,0 +1,4 @@
+# React front end
+node_modules/
+dist/
+qa/.schema-check.d.ts

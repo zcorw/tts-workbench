@@ -1,0 +1,42 @@
+services:
+  app:
+    image: ${APP_IMAGE:?Set an immutable application image reference}
+    init: true
+    restart: unless-stopped
+    env_file:
+      - ${RUNTIME_ENV_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      WEB_DIST: /app/apps/web/dist
+    ports:
+      - target: 3000
+        published: ${APP_HOST_PORT:-8080}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-workbench}
+      POSTGRES_USER: ${POSTGRES_USER:-workbench}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set PostgreSQL password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+volumes:
+  postgres_data:

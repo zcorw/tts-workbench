@@ -1,0 +1,1 @@
+{"name":"tts-workbench","version":"0.1.0","private":true,"type":"module","scripts":{"contract:validate":"node scripts/validate-contract.mjs","build":"npm --prefix apps/api run build","test":"npm --prefix apps/api test"},"devDependencies":{"@apidevtools/swagger-parser":"12.1.0","yaml":"2.9.0"}}

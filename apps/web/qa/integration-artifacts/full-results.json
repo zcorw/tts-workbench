@@ -1,0 +1,146 @@
+{
+  "date": "2026-09-06T04:57:08.940Z",
+  "origin": "http://127.0.0.1:4181/",
+  "checks": [
+    "真实PG账户注册且不自动登录",
+    "Cookie登录与资料PATCH",
+    "刷新后会话和显示名称保留",
+    "wb_session HttpOnly SameSite=Lax",
+    "登录/退出CSRF轮换",
+    "退出后me401",
+    "无音色禁用生成",
+    "真实个人规则POST及当前同词标记",
+    "新文章与刷新持久复用",
+    "真实PATCH并发409保留表单与旧服务状态",
+    "个人规则新增查询及DELETE204版本更新",
+    "无效CSRF真实403",
+    "未配置语音真实503 JSON"
+  ],
+  "responses": [
+    {
+      "path": "/v1/config",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 401
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/register",
+      "status": 201
+    },
+    {
+      "path": "/v1/auth/login",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/voices",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/v1/config",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/v1/voices",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 201
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/config",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "status": 200
+    },
+    {
+      "path": "/v1/voices",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary/ea5dcd1e-afbb-4e15-84e8-90684bb71ab9",
+      "status": 409
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 201
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary/86ac4cd0-487d-432b-9ada-01d340274931",
+      "status": 204
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary/ea5dcd1e-afbb-4e15-84e8-90684bb71ab9",
+      "status": 204
+    },
+    {
+      "path": "/v1/vocabulary",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/logout",
+      "status": 204
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "status": 200
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="日文优先的语音工作台交互原型：正文选词修改读法，默认保存个人规则并跨文章使用。">
+  <title>YOMI · 日文语音工作台原型</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#workbench" aria-label="YOMI 首页"><span class="brand-mark">よ</span><span>YOMI<small>日文语音工作台</small></span></a>
+    <div class="nav-caption">WORKSPACE</div>
+    <nav aria-label="主导航">
+      <button class="nav-item active" data-view="workbench"><span aria-hidden="true">▤</span>语音工作台<span class="nav-index">01</span></button>
+      <button class="nav-item" data-view="rules"><span aria-hidden="true">あ</span>个人读法规则<span class="nav-index" id="navRuleCount">2</span></button>
+      <button class="nav-item" data-view="requirements"><span aria-hidden="true">▦</span>产品需求说明<span class="nav-index">↗</span></button>
+    </nav>
+    <div class="sidebar-guide"><span class="tiny-label">READ IT YOUR WAY</span><p>保留原文。<br>让读法，符合你的心意。</p><span class="guide-line"></span><small>日文优先 · 个人规则跨文章复用</small></div>
+    <div class="sidebar-bottom"><div class="prototype-label"><span></span>交互原型 · 本地演示</div><button id="accountButton" class="account-button"><span class="avatar" id="avatar">林</span><span><strong id="accountName">林 · 演示账户</strong><small id="accountSub">个人工作空间</small></span><span class="account-arrow">⌃</span></button></div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar"><div class="breadcrumbs">个人工作空间 <span>/</span> <strong id="pageLabel">语音工作台</strong></div><div class="header-actions"><span class="language-tag"><span></span>日本語 · ja-JP</span><button class="icon-button" id="guideButton" aria-label="打开使用指引">?</button></div></header>
+    <main>
+      <section id="workbenchView" class="view">
+        <div class="page-heading"><div><div class="eyebrow">JAPANESE SPEECH STUDIO</div><h1>让日文，按你的读法发声<span>。</span></h1><p>先听，再修正。在正文中选中词汇，读法会记住你的选择。</p></div><button class="button secondary" id="newArticleButton"><span>＋</span> 新文章</button></div>
+        <div class="workflow" aria-label="核心使用流程"><span><b>01</b> 输入文章</span><i>→</i><span><b>02</b> 生成并听音</span><i>→</i><span class="focus"><b>03</b> 正文选词，修正读法</span><i>→</i><span><b>04</b> 保存规则，再次生成</span></div>
+        <div class="workspace-grid">
+          <div class="writing-column">
+            <section class="editor-card" aria-label="文章编辑">
+              <div class="editor-toolbar"><div><span class="document-dot"></span><strong id="articleTitle">京都、朝の散歩</strong><span class="subtle-tag">会话内草稿</span></div><button class="text-button" id="copyButton">复制原文 <span aria-hidden="true">⧉</span></button></div>
+              <div class="paper-kicker"><span>日本語の文章</span><span id="characterCount">0 字符</span></div>
+              <div id="articleEditor" class="article-editor" role="textbox" aria-label="日文正文，可直接编辑和选词" aria-multiline="true" contenteditable="plaintext-only" spellcheck="false" lang="ja"></div>
+              <div class="editor-bottom"><span><i class="legend-dot"></i>有标记的词汇已应用个人读法</span><span id="matchSummary">0 处命中</span></div>
+              <div class="selection-hint"><span class="hint-cursor">↖</span><span>拖选任意词汇后点击“修改读法”，或直接点击已有标记。</span><button class="text-button" id="exampleSelect">试选「日本橋」</button></div>
+            </section>
+            <section class="audio-card" aria-label="合成结果">
+              <div class="audio-title"><div><span class="eyebrow">OUTPUT</span><h2>听见你的修改</h2></div><span class="status-pill" id="audioStatus">等待生成</span></div>
+              <div id="audioEmpty" class="audio-empty"><div class="empty-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div><strong>第一遍朗读，从这里开始</strong><p>生成演示结果后，可以检查读法应用并尝试浏览器日文试听。</p></div></div>
+              <div id="audioResult" hidden>
+                <div class="stale-banner" id="staleBanner" hidden><span>●</span><div><strong>内容已更新，需要重新生成</strong><small>下面仍是上一次提交的结果，新的读法尚未应用。</small></div></div>
+                <div class="player"><button id="playButton" class="play-button" aria-label="使用浏览器日文音色试听">▶</button><div class="player-track"><div class="waveform" id="waveform" aria-hidden="true"></div><div class="player-meta"><span id="playState">浏览器试听 · 非 Gateway 音频</span><span id="resultTime"></span></div></div></div>
+                <p id="voiceNotice" class="small-note"></p>
+                <div class="result-meta"><span id="resultInfo"></span><button id="downloadButton" class="text-button">导出合成说明 ↗</button><button class="button secondary compact" disabled aria-describedby="mp3Notice">MP3 下载</button></div><p id="mp3Notice" class="small-note">原型未连接 Gateway；MP3 下载在真实服务接入后提供。</p>
+                <details class="applied-output"><summary>检查本次提交的读法文本 <span>用于核对，文章原文不变</span></summary><div id="appliedText" lang="ja"></div></details>
+              </div>
+              <div id="generationError" class="inline-error" role="alert" hidden></div>
+            </section>
+          </div>
+
+          <aside class="right-rail">
+            <section class="settings-card"><div class="section-label"><span class="number-square">01</span><h2>朗读设置</h2></div><label class="field-label" for="voiceSelect">日文音色 <span>概念音色</span></label><select id="voiceSelect"><option value="calm">凪 Nagi · 平静旁白</option><option value="bright">晴 Haru · 明亮讲述</option></select><div class="voice-description"><span class="mini-wave">▂▆▃▇▃</span><span>日本語 / 清晰自然</span><span class="subtle-tag">演示</span></div><label class="field-label speed-label" for="speedRange">语速 <output id="speedValue">1.00×</output></label><input id="speedRange" type="range" min="0.5" max="2" step="0.05" value="1"><div class="range-labels"><span>0.50×</span><span>标准</span><span>2.00×</span></div><div class="auto-rule-note"><span>✓</span><div>自动应用个人规则<small>当前及以后的文章，都会记住读法。</small></div></div><button id="generateButton" class="button primary generate-button"><span id="generateLabel">生成语音演示</span><span aria-hidden="true">↗</span></button><p class="small-note centered">不调用云服务 · 不产生合成费用</p></section>
+            <section class="pronunciation-card" id="pronunciationCard"><div class="section-label"><span class="number-square coral">あ</span><h2>修改词汇读法</h2><span class="scope-pill">个人规则</span></div>
+              <div id="selectionEmpty" class="selection-empty"><div class="selection-illustration" aria-hidden="true">日本<span>橋</span><i>↖</i></div><strong>从正文选一个词</strong><p>把容易读错的地名、专名<br>改成你想要的日文读法。</p><span class="small-note">原文保持不变，读法单独保存。</span></div>
+              <form id="readingForm" hidden><label class="field-label" for="selectedWord">原词 <span id="wordMode">来自正文选区</span></label><input id="selectedWord" readonly lang="ja"><label class="field-label" for="readingInput">指定读法 <span>日文替代文本</span></label><input id="readingInput" lang="ja" autocomplete="off" placeholder="例如：にほんばし" maxlength="200"><div class="scope-callout"><strong>保存为个人规则</strong><p>影响当前文章的 <b id="occurrenceCount">1</b> 处匹配，也会用于以后文章。</p></div><div id="existingRuleNotice" class="small-note"></div><div id="saveError" class="inline-error" role="alert" hidden></div><button class="button primary full" type="submit" id="saveRuleButton">保存个人规则</button><div class="form-actions"><button class="text-button" id="cancelRuleButton" type="button">取消</button><button class="text-button danger" id="deleteRuleButton" type="button" hidden>删除个人规则</button></div><p class="small-note">假名用于演示读法；最终发音效果需由实际日文音色验证。</p></form>
+            </section>
+            <div class="rail-footnote"><span>↗</span><p>保存是跨文章的个人偏好。<br>首版不需要发布词典或编写 SSML。</p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="rulesView" class="view" hidden>
+        <div class="page-heading"><div><div class="eyebrow">YOUR PRONUNCIATION LIBRARY</div><h1>每个词，都有你的读法<span>。</span></h1><p>正文中的修改会自动出现在这里，并持续应用于你的日文文章。</p></div><button class="button primary" id="addRuleButton">＋ 添加个人规则</button></div>
+        <div class="rules-summary"><div><span class="metric-number" id="ruleTotal">2</span><span>条个人规则</span></div><div><span class="summary-check">✓</span><span>保存后立即用于后续合成<br><small>无需手动发布，其他账户不可使用。</small></span></div><div><span class="tiny-label">RULE SCOPE</span><strong>当前文章 + 以后文章</strong></div></div>
+        <div class="rules-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="ruleSearch" type="search" placeholder="搜索词汇或读法" aria-label="搜索个人规则"></label><span id="rulesCountNote" class="small-note"></span></div>
+        <div class="table-wrap"><table class="rules-table"><thead><tr><th>日文词汇</th><th>指定读法</th><th>应用范围</th><th>当前文章</th><th>操作</th></tr></thead><tbody id="rulesTableBody"></tbody></table><div id="rulesEmpty" class="table-empty" hidden>还没有匹配的规则。可以回到正文选词，或添加一条个人规则。</div></div>
+        <div class="rules-footer"><span>原文不会被改写。只对实际朗读应用你的读法。</span><button class="text-button" data-view="workbench">回到正文修正发音 →</button></div>
+      </section>
+
+      <section id="requirementsView" class="view" hidden>
+        <div class="page-heading"><div><div class="eyebrow">PRODUCT BRIEF / V0.7</div><h1>从一次修正，到每一次朗读<span>。</span></h1><p>原型围绕已确认需求展开。技术选型、视觉名称与演示音色是建议，不代表已实现。</p></div><span class="confirmed-badge">已确认需求基线</span></div>
+        <div class="brief-intro"><p class="brief-lead">面向日文文章的语音生成与发音修正。<br>在正文中选词修改，默认保存个人规则，<em>当前和以后的文章都会使用。</em></p><div class="brief-count"><strong>19</strong><span>产品功能要求<br>3 个独立工程边界</span></div></div>
+        <div class="brief-cards"><article><span>01 / 日本語</span><h2>日文是首版目标</h2><p>日文音色、ja-JP 请求、个人读法及真实日文可听验证都必须进入 MVP。</p></article><article><span>02 / IN CONTEXT</span><h2>修正发生在正文</h2><p>输入、生成、听音、选词、改读法、再生成。个人规则页是辅助入口。</p></article><article><span>03 / PERSONAL</span><h2>默认记为个人规则</h2><p>保存到当前账户，影响当前同词和以后文章。失败不能假装生效，原文不改。</p></article></div>
+        <div class="brief-section"><div class="brief-section-heading"><span class="eyebrow">ENGINEERING BOUNDARIES</span><h2>独立维护，通过公开包组合</h2></div><div class="repo-grid"><article><span class="repo-tag">独立账户工程 · 名称待定</span><h3>nest-account</h3><p>账户创建、登录、身份验证和会话。自有构建、测试、文档、版本与包产物。</p><code>AccountModule → 公共包</code></article><article><span class="repo-tag">已有独立工程</span><h3>TTS-gateway</h3><p>音色目录、请求验证、供应商适配和音频结果。首版须补齐日文契约与规则能力。</p><code>TtsModule → 公共包</code></article><article class="repo-app"><span class="repo-tag">组合应用</span><h3>tts-workbench</h3><p>正文工作台、个人词汇读法与账户界面。只通过明确版本的包接入另外两个工程。</p><code>公开包依赖 · 无兄弟 src 引用</code></article></div><p class="small-note">独立仓库不要求公开 npm 发布。可用本地包产物或私有 registry；此原型不创建账户仓库、不初始化 Git。</p></div>
+        <div class="brief-section"><div class="brief-section-heading"><span class="eyebrow">REQUIREMENTS & ACCEPTANCE</span><h2>功能与验收</h2></div><div class="table-wrap"><table class="spec-table"><thead><tr><th>功能 ID</th><th>范围</th><th>可观察结果</th></tr></thead><tbody id="specTableBody"></tbody></table></div></div>
+        <div class="scope-grid"><article><span class="confirmed-badge">已确认</span><h3>首版必须实现</h3><p>日文优先 · 正文修音 · 默认个人规则跨文章生效 · 账户独立工程 · 原文与读法分离。</p></article><article><span class="suggestion-badge">建议 / 待选型</span><h3>实现仍需验证</h3><p>数据库、认证策略、前端、账户工程命名及包分发未最终确定。此处假名 alias、视觉样式和音色名称是演示建议。</p></article><article><span class="neutral-badge">后续 / 非目标</span><h3>保持产品简单</h3><p>“仅此处”是可选后续。首版不做释义查词、手动发布、自动错音识别、音文同步或 IPA 编辑。</p></article></div>
+        <div class="demo-controls"><div><span class="eyebrow">PROTOTYPE LAB</span><h2>验证异常，而不只看成功页面</h2><p>账户认证和生成是模拟；个人规则只保存在此浏览器本地。不会发送密码或调用 Gateway。</p></div><label class="field-label">下一次操作<select id="scenarioSelect"><option value="normal">正常流程</option><option value="save-error">模拟规则保存 / 删除失败</option><option value="generate-error">模拟合成失败</option></select></label><button class="button secondary" id="expireButton">模拟登录过期</button></div>
+        <div class="brief-links"><a href="../docs/PRODUCT_SPEC.md" target="_blank" rel="noopener">完整产品说明书 ↗</a><a href="../docs/ARCHITECTURE.md" target="_blank" rel="noopener">架构规划 ↗</a><a href="../TODO.md" target="_blank" rel="noopener">开发任务 ↗</a><span>YOMI 为原型暂用名称</span></div>
+      </section>
+      <footer class="page-footer"><span>YOMI <i>·</i> 让文字保留原样，让读法更合心意。</span><span>交互原型 / 无真实后端连接</span></footer>
+    </main>
+  </div>
+
+  <div id="selectionToolbar" class="selection-toolbar" hidden><span id="selectionPreview"></span><button id="editSelectionButton">修改读法 ↗</button></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <dialog id="articleDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">NEW ARTICLE</span><h2>换一篇日文文章</h2></div><button class="icon-button" aria-label="关闭">×</button></form><p class="dialog-description">个人读法规则会继续使用。当前文章只在本次会话中保留。</p><div class="sample-actions"><button class="button secondary compact" id="loadSampleOne">京都的早晨</button><button class="button secondary compact" id="loadSampleTwo">下一篇文章 · 验证规则复用</button><button class="text-button" id="loadBlank">清空</button></div><label class="field-label" for="newArticleTitle">文章标题</label><input id="newArticleTitle" value="旅の記憶"><label class="field-label" for="newArticleText">日文正文</label><textarea id="newArticleText" rows="7" lang="ja"></textarea><div class="dialog-footer"><button class="button secondary" id="cancelArticle">取消</button><button class="button primary" id="applyArticle">使用这篇文章</button></div></dialog>
+
+  <dialog id="ruleDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">PERSONAL RULE</span><h2 id="ruleDialogTitle">添加个人规则</h2></div><button class="icon-button" aria-label="关闭">×</button></form><form id="modalRuleForm"><label class="field-label" for="modalWord">日文词汇</label><input id="modalWord" lang="ja" autocomplete="off"><label class="field-label" for="modalReading">指定读法</label><input id="modalReading" lang="ja" autocomplete="off" placeholder="例如：きょうと"><div class="scope-callout"><strong>当前及以后文章都会使用</strong><p>保存的是个人规则，不会改写文章中的原始文字。</p></div><p id="modalRuleError" class="inline-error" role="alert" hidden></p><div class="dialog-footer"><button class="button secondary" type="button" id="cancelModalRule">取消</button><button class="button primary" type="submit" id="modalSave">保存个人规则</button></div></form></dialog>
+
+  <dialog id="confirmDialog"><div class="dialog-heading"><div><span class="eyebrow">DELETE PERSONAL RULE</span><h2>删除这条个人规则？</h2></div></div><p id="deleteDescription" class="dialog-description"></p><p class="small-note">这会影响当前所有匹配处和以后文章，原文不会删除。已生成音频保持旧结果。</p><p id="deleteError" class="inline-error" role="alert" hidden></p><div class="dialog-footer"><button class="button secondary" id="cancelDelete">保留规则</button><button class="button danger-button" id="confirmDelete">删除个人规则</button></div></dialog>
+
+  <dialog id="accountDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">ACCOUNT MODULE</span><h2 id="accountDialogTitle">演示账户</h2></div><button class="icon-button" aria-label="关闭">×</button></form><p class="dialog-description">此处模拟独立账户模块的创建、登录与身份状态。请勿输入真实密码。</p><div id="currentAccountPanel"><div class="current-account"><span class="avatar large" id="modalAvatar">林</span><div><strong id="modalAccountName"></strong><small>仅当前账户的个人规则可用</small></div></div><div class="dialog-footer"><button class="button secondary" id="switchAccount">切换演示账户</button><button class="button secondary" id="logoutButton">退出登录</button></div></div><form id="authForm" hidden><div class="auth-tabs"><button type="button" id="loginTab" class="active">登录</button><button type="button" id="registerTab">创建账户</button></div><label class="field-label" for="authName">演示账户名称</label><input id="authName" autocomplete="off" placeholder="例如：林"><label class="field-label" for="authPassword">演示密码 <span>不存储、不发送</span></label><input id="authPassword" type="password" autocomplete="off" placeholder="任意 8 位演示字符" minlength="8"><p id="authError" class="inline-error" role="alert" hidden></p><button id="authSubmit" type="submit" class="button primary full">模拟登录</button><p class="small-note">这不是安全认证实现。正式产品由独立账户模块验证凭据和登录态。</p></form></dialog>
+
+  <dialog id="guideDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">QUICK START</span><h2>三分钟，走完产品闭环</h2></div><button class="icon-button" aria-label="关闭">×</button></form><ol class="guide-list"><li><b>生成演示结果</b><p>检查本次应用的读法；有日文系统音色时可浏览器试听。</p></li><li><b>在正文选中「日本橋」</b><p>输入“にほんばし”，默认保存为个人规则。原文不会变。</p></li><li><b>重新生成，再换一篇文章</b><p>新文章中同词仍应用这条规则；旧音频会标记过期。</p></li><li><b>到“产品需求说明”验证异常</b><p>模拟保存失败、合成失败或登录过期，检查状态和恢复操作。</p></li></ol><div class="dialog-footer"><button id="startGuide" class="button primary">开始体验 →</button></div></dialog>
+</body>
+</html>

@@ -1,0 +1,882 @@
+openapi: 3.0.3
+info:
+  title: Japanese TTS Workbench API
+  version: 1.0.1
+  description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable
+    (none in v1). All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
+    HTTPS, proxies a single 127.0.0.1 Compose port. Do not trust caller-supplied identity or forwarded
+    headers. Fetch with credentials same-origin. Every mutation uses JSON (except bodyless logout/delete),
+    Origin verification and X-CSRF-Token; registration is opt-in. No local-position override."
+servers:
+  - url: /
+paths:
+  /v1/config:
+    get:
+      operationId: getConfig
+      summary: Public UI capabilities
+      description: ""
+      security: []
+      responses:
+        "200":
+          description: Success
+          headers: &a1
+            X-Request-Id: &a2
+              schema: &a12
+                type: string
+                format: uuid
+            Cache-Control: &a3
+              schema:
+                type: string
+                enum:
+                  - no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Config"
+        "400": &a4
+          description: "INVALID_REQUEST: invalid fields, JSON or unknown properties"
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403": &a5
+          description: FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429": &a6
+          description: RATE_LIMITED; retry after indicated seconds
+          headers:
+            X-Request-Id: *a2
+            Cache-Control: *a3
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503": &a7
+          description: DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/csrf:
+    get:
+      operationId: getCsrf
+      summary: Get browser-bound CSRF token
+      description: "Sets HttpOnly csrf binding cookie (Path=/, SameSite=Lax, Secure in production). Token valid for
+        1 hour; repeated calls reuse binding. Send returned token in X-CSRF-Token for every POST/PATCH/DELETE
+        including anonymous login/register. Login/logout invalidate binding: fetch again after success. GET
+        accepts a missing Origin (normal same-origin browser GET); when present it must equal configured
+        public origin. Strict required Origin applies only to POST/PATCH/DELETE."
+      security: []
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Csrf"
+        "400": *a4
+        "403": *a5
+        "429": *a6
+        "503": *a7
+  /v1/auth/register:
+    post:
+      operationId: register
+      summary: Create account; does not log in
+      description: Disabled by default; 403 REGISTRATION_DISABLED. Display name is trimmed. Login is immutable and
+        case-insensitively unique. After 201, use login endpoint.
+      security:
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Register"
+      responses:
+        "201":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400": *a4
+        "403": *a5
+        "409": &a11
+          description: REVISION_CONFLICT / ALREADY_EXISTS / VOCABULARY_LIMIT
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413": &a8
+          description: PAYLOAD_TOO_LARGE
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415": &a9
+          description: UNSUPPORTED_MEDIA_TYPE
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429": *a6
+        "503": *a7
+  /v1/auth/login:
+    post:
+      operationId: login
+      summary: Log in
+      description: Generic 401 for unknown login/wrong password/disabled account. Session idle expiry 24 hours,
+        absolute expiry 7 days. Fetch fresh CSRF after success.
+      security:
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Success
+          headers:
+            X-Request-Id: *a2
+            Cache-Control: *a3
+            Set-Cookie:
+              schema:
+                type: string
+              description: wb_session=<opaque>; HttpOnly; SameSite=Lax; Path=/; Secure in production. CSRF binding is
+                cleared.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400": *a4
+        "401": &a10
+          description: "UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials"
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403": *a5
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke current session
+      description: Idempotent for absent/expired session, but requires valid CSRF and same origin.
+      security:
+        - csrfHeader: []
+      responses:
+        "204":
+          description: Revoked, cookies cleared; fetch new CSRF before next mutation
+          headers: *a1
+        "400": *a4
+        "403": *a5
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+  /v1/auth/me:
+    get:
+      operationId: getCurrentAccount
+      summary: Current account
+      description: ""
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "429": *a6
+        "503": *a7
+    patch:
+      operationId: updateCurrentAccount
+      summary: Update display name
+      description: Only displayName is editable; login/password changes are outside this release.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPatch"
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+  /v1/vocabulary:
+    get:
+      operationId: listVocabulary
+      summary: List personal reading rules
+      description: Substring search on text or reading, case-sensitive after NFC normalization; stable createdAt
+        then id ascending. total counts filtered rows; internalVersion represents whole personal set. Each
+        page is one consistent DB snapshot. Use limit=500 without q for complete article projection (account
+        cap 500); do not combine differing versions across pages.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabularyPage"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "429": *a6
+        "503": *a7
+    post:
+      operationId: createVocabulary
+      summary: Save personal reading for current and future articles
+      description: NFC-normalized text is unique within account. Commit increments set internalVersion atomically.
+        No publish step. Does not modify original article.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VocabularyInput"
+      responses:
+        "201":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabularyResult"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "409": *a11
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+  /v1/vocabulary/{id}:
+    get:
+      operationId: getVocabulary
+      summary: Get owned entry
+      description: ""
+      security:
+        - sessionCookie: []
+      parameters:
+        - &a13
+          name: id
+          in: path
+          required: true
+          schema: *a12
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabularyResult"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "404": &a14
+          description: "NOT_FOUND: absent or not owned"
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429": *a6
+        "503": *a7
+    patch:
+      operationId: updateVocabulary
+      summary: Conditionally update personal reading
+      description: Both text and reading required; expectedRevision must match. 409 leaves server state unchanged;
+        refetch entry/list before resolving conflict. Successful update increments entry revision and set
+        version.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VocabularyPatch"
+      parameters:
+        - *a13
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabularyResult"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "404": *a14
+        "409": *a11
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+    delete:
+      operationId: deleteVocabulary
+      summary: Conditionally delete personal reading
+      description: Revision is a required query parameter, not a DELETE body. Affects all matching occurrences and
+        future articles. Refetch list after success; missing/not-owned entry gives 404.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      parameters:
+        - *a13
+        - name: expectedRevision
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          required: true
+      responses:
+        "204":
+          description: Deleted from current/future rule set
+          headers:
+            X-Request-Id: *a2
+            Cache-Control: *a3
+            X-Pronunciation-Version:
+              schema: &a15
+                type: integer
+                minimum: 0
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "404": *a14
+        "409": *a11
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "503": *a7
+  /v1/voices:
+    get:
+      operationId: getVoices
+      summary: Configured Japanese voices
+      description: Only voices authorized for the current identity with ja-JP, MP3 and alias reading support are
+        returned. Unknown voice is 400; a configured but unauthorized voice is 403 on speech/preview.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voices"
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "429": *a6
+        "503": *a7
+  /v1/audio/speech:
+    post:
+      operationId: synthesizeSpeech
+      summary: Synthesize Japanese article with personal rules
+      description: Plain text only, must contain non-whitespace; reject U+0000–U+0008, U+000B–U+001F and
+        U+007F–U+009F (tab and LF allowed). Rules are NFC-normalized at save, but article input is never
+        normalized or rewritten. Match saved rules against original input using case-sensitive literal
+        matching, leftmost then longest match, ties by stable createdAt/id rule order, single pass with no
+        recursive replacement. Read one immutable snapshot before the provider call; subsequent writes cannot
+        alter it. At most 10000 Unicode code points AND 49152 UTF-8 bytes, JSON body at most 65536 bytes.
+        Server selects owned rules from authenticated identity; actor/owner/dictionaryIds/SSML/positions are
+        rejected. One immutable personal snapshot per request; no persisted article/audio. Saving while
+        synthesis is in flight does not change its snapshot. Unconfigured TTS returns 503, unknown voice 400.
+        No automatic billable retries.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Speech"
+      responses:
+        "200": &a16
+          description: Complete MP3, max 8388608 bytes; buffered before headers. No JSON envelope or automatic retry.
+            Browser must consume complete response before playback.
+          headers:
+            X-Request-Id: *a2
+            Cache-Control: *a3
+            Content-Length:
+              schema:
+                type: integer
+                minimum: 1
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline; filename="speech.mp3"
+            X-Pronunciation-Version:
+              schema: *a15
+              description: Version of the personal snapshot actually used for this response, never a later DB lookup.
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "502": &a17
+          description: TTS_PROVIDER_ERROR
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503": *a7
+        "504": &a18
+          description: TTS_TIMEOUT
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/audio/preview:
+    post:
+      operationId: previewReading
+      summary: Preview unsaved word reading
+      description: Synthesize text as a single word using reading as temporary highest-priority alias in the same
+        Gateway pipeline. No persistence/version increment, no article positions. X-Pronunciation-Version
+        describes the base personal snapshot, not a saved draft. May incur provider usage; never automatically
+        called on typing.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Preview"
+      responses:
+        "200": *a16
+        "400": *a4
+        "401": *a10
+        "403": *a5
+        "413": *a8
+        "415": *a9
+        "429": *a6
+        "502": *a17
+        "503": *a7
+        "504": *a18
+  /health/live:
+    get:
+      operationId: liveness
+      summary: Process liveness
+      description: ""
+      security: []
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "400": *a4
+        "403": *a5
+        "429": *a6
+        "503": *a7
+  /health/ready:
+    get:
+      operationId: readiness
+      summary: Database and runtime readiness
+      description: No paid synthesis. DB must be reachable. TTS may be intentionally unconfigured; getVoices is then
+        empty and synthesis returns 503.
+      security: []
+      responses:
+        "200":
+          description: Success
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "400": *a4
+        "403": *a5
+        "429": *a6
+        "503": *a7
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: wb_session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+      properties:
+        code:
+          type: string
+          example: REVISION_CONFLICT
+        message:
+          type: string
+        requestId: *a12
+    Account:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - login
+        - displayName
+        - status
+      properties:
+        id: *a12
+        login:
+          type: string
+        displayName: &a19
+          type: string
+          minLength: 1
+          maxLength: 40
+        status:
+          type: string
+          enum:
+            - active
+            - disabled
+    Credentials:
+      type: object
+      additionalProperties: false
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 120
+          pattern: ^[A-Za-z0-9@._+-]+$
+          description: Trimmed and lowercased; stable login identifier, not necessarily email.
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+    Register:
+      type: object
+      additionalProperties: false
+      required:
+        - login
+        - password
+        - displayName
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 120
+          pattern: ^[A-Za-z0-9@._+-]+$
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+        displayName: *a19
+    Csrf:
+      type: object
+      additionalProperties: false
+      required:
+        - csrfToken
+        - expiresAt
+      properties:
+        csrfToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    Config:
+      type: object
+      additionalProperties: false
+      required:
+        - registrationEnabled
+        - language
+        - maxVocabularyEntries
+        - maxInputCodePoints
+        - maxInputBytes
+      properties:
+        registrationEnabled:
+          type: boolean
+        language:
+          type: string
+          enum:
+            - ja-JP
+        maxVocabularyEntries:
+          type: integer
+          minimum: 1
+        maxInputCodePoints:
+          type: integer
+          minimum: 1
+        maxInputBytes:
+          type: integer
+          minimum: 1
+    VocabularyInput:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - reading
+      properties:
+        text: &a20
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: NFC normalized, non-whitespace; no angle brackets or control characters. Length in Unicode code
+            points.
+        reading: *a20
+    VocabularyPatch:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - reading
+        - expectedRevision
+      properties:
+        text: *a20
+        reading: *a20
+        expectedRevision:
+          type: integer
+          minimum: 1
+    Vocabulary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - text
+        - reading
+        - revision
+        - createdAt
+        - updatedAt
+      properties:
+        id: *a12
+        text: *a20
+        reading: *a20
+        revision:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VocabularyResult:
+      type: object
+      additionalProperties: false
+      required:
+        - entry
+        - internalVersion
+      properties:
+        entry:
+          $ref: "#/components/schemas/Vocabulary"
+        internalVersion: *a15
+    VocabularyPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+        - offset
+        - limit
+        - internalVersion
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vocabulary"
+        total:
+          type: integer
+          minimum: 0
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        internalVersion: *a15
+    Voice:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - language
+        - provider
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        language:
+          type: string
+          enum:
+            - ja-JP
+        provider:
+          type: string
+          enum:
+            - azure-speech
+            - amazon-polly
+    Voices:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Voice"
+          description: Empty when no Japanese provider is configured; no demo voice is returned.
+    Speech:
+      type: object
+      additionalProperties: false
+      required:
+        - input
+        - voice
+      properties:
+        input:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          example: 今日は日本語を勉強します。
+        voice:
+          type: string
+          minLength: 1
+          description: ID from getVoices, not a provider voice identifier.
+        speed:
+          type: number
+          minimum: 0.5
+          maximum: 2
+          multipleOf: 0.01
+          default: 1
+        language:
+          type: string
+          enum:
+            - ja-JP
+          default: ja-JP
+        inputType:
+          type: string
+          enum:
+            - text
+          default: text
+        format:
+          type: string
+          enum:
+            - mp3
+          default: mp3
+    Preview:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - reading
+        - voice
+      properties:
+        text: *a20
+        reading: *a20
+        voice:
+          type: string
+          minLength: 1
+        speed:
+          type: number
+          minimum: 0.5
+          maximum: 2
+          multipleOf: 0.01
+          default: 1
+    Health:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+    AccountPatch:
+      type: object
+      additionalProperties: false
+      required:
+        - displayName
+      properties:
+        displayName: *a19

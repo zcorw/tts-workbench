@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="日文语音工作台：正文选词修改读法，默认保存个人规则并跨文章使用。">
+  <title>YOMI · 日文语音工作台</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">跳到主要内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="#workbench" aria-label="YOMI 首页"><span class="brand-mark">よ</span><span>YOMI<small>日文语音工作台</small></span></a>
+    <div class="nav-caption">WORKSPACE</div>
+    <nav aria-label="主导航">
+      <button class="nav-item active" data-view="workbench"><span aria-hidden="true">▤</span>语音工作台</button>
+      <button class="nav-item" data-view="rules"><span aria-hidden="true">あ</span>个人读法规则<span class="nav-index" id="navRuleCount">2</span></button>
+      <button class="nav-item" data-view="account"><span aria-hidden="true">◎</span>账户与设置</button>
+    </nav>
+    <div class="sidebar-guide"><span class="tiny-label">READ IT YOUR WAY</span><p>保留原文。<br>让读法，符合你的心意。</p><span class="guide-line"></span><small>让每一次朗读，都更合心意</small></div>
+    <div class="sidebar-bottom"><button id="accountButton" class="account-button"><span class="avatar" id="avatar">林</span><span><strong id="accountName">本机账户</strong><small id="accountSub">个人工作空间</small></span><span class="account-arrow">⌃</span></button></div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar"><div class="breadcrumbs">个人工作空间 <span>/</span> <strong id="pageLabel">语音工作台</strong></div><div class="header-actions"><span class="language-tag"><span></span>日本語</span><button class="icon-button" id="guideButton" aria-label="打开使用指引">?</button></div></header>
+    <main id="mainContent" tabindex="-1">
+      <section id="workbenchView" class="view">
+        <div class="page-heading"><div><div class="eyebrow">JAPANESE SPEECH STUDIO</div><h1>让日文，按你的读法发声<span>。</span></h1><p>先听，再修正。在正文中选中词汇，读法会记住你的选择。</p></div><button class="button secondary" id="newArticleButton"><span>＋</span> 新文章</button></div>
+        <div class="workspace-grid">
+          <div class="writing-column">
+            <section class="editor-card" aria-label="文章编辑">
+              <div class="editor-toolbar"><div><span class="document-dot"></span><strong id="articleTitle">京都、朝の散歩</strong><span class="subtle-tag">未保存的文章</span></div><button class="text-button" id="copyButton">复制原文 <span aria-hidden="true">⧉</span></button></div>
+              <div class="paper-kicker"><span>日本語の文章</span><span id="characterCount">0 字符</span></div>
+              <div id="articleEditor" class="article-editor" role="textbox" aria-label="日文正文，可直接编辑和选词" aria-multiline="true" contenteditable="plaintext-only" spellcheck="false" lang="ja"></div>
+              <div class="editor-bottom"><span><i class="legend-dot"></i>有标记的词汇已应用个人读法</span><span id="matchSummary">0 处命中</span></div>
+              <div class="selection-hint"><span class="hint-cursor">↖</span><span>拖选任意词汇后点击“修改读法”，或直接点击已有标记。</span><button class="text-button" id="editSelected" disabled>修改所选词汇</button></div>
+            </section>
+            <section class="audio-card" aria-label="朗读结果">
+<div class="audio-title"><div><span class="eyebrow">LISTEN</span><h2>听见你的修改</h2></div><span class="status-pill" id="audioStatus" role="status">等待生成</span></div>
+<div id="audioEmpty" class="audio-empty"><div class="empty-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div><strong>第一遍朗读，从这里开始</strong><p>选择日文音色，再生成并聆听文章。</p></div></div>
+<div id="audioResult" hidden><div class="stale-banner" id="staleBanner" hidden><span>●</span><div><strong>内容已更新，需要重新生成</strong><small>上次朗读使用的内容尚未更新。</small></div></div><div class="player"><button id="playButton" class="play-button" aria-label="播放">▶</button><div class="player-track"><div class="waveform" id="waveform" aria-hidden="true"></div><div class="player-meta"><span id="playState">已停止</span><span id="resultTime"></span></div></div><button id="stopButton" class="button secondary compact">停止</button></div><div class="result-meta"><span id="resultInfo"></span><button id="downloadButton" class="button secondary compact" disabled>下载音频</button></div><p class="small-note" id="downloadNotice">系统朗读不提供音频文件下载。</p></div>
+<div id="generationError" class="inline-error" role="alert" hidden></div></section>
+          </div>
+
+          <aside class="right-rail">
+<section class="settings-card"><div class="section-label"><span class="number-square">♪</span><h2>朗读设置</h2></div><label class="field-label" for="voiceSelect">日文音色</label><select id="voiceSelect" disabled><option>正在查找音色…</option></select><p id="voiceNotice" class="small-note" role="status"></p><button id="retryVoices" class="text-button">刷新音色</button><label class="field-label speed-label" for="speedRange">语速 <output id="speedValue">1.00×</output></label><input id="speedRange" type="range" min="0.5" max="2" step="0.05" value="1"><div class="range-labels"><span>0.50×</span><span>标准</span><span>2.00×</span></div><div class="auto-rule-note"><span>✓</span><div>自动应用个人读法<small>当前及以后的文章都会使用。</small></div></div><button id="generateButton" class="button primary generate-button" disabled><span id="generateLabel">生成并朗读</span><span aria-hidden="true">↗</span></button><p id="inputNotice" class="small-note centered"></p></section>
+<section class="pronunciation-card"><div class="section-label"><span class="number-square coral">あ</span><h2>让词汇读对音</h2></div><div class="selection-empty"><div class="selection-illustration" aria-hidden="true">日本<span>橋</span><i>↖</i></div><strong>在正文中选一个词</strong><p>指定你想要的读法。<br>原文保留原字，读法单独保存。</p></div><div id="matchedRules" class="matched-rules"></div></section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="rulesView" class="view" hidden>
+        <div class="page-heading"><div><div class="eyebrow">YOUR PRONUNCIATION LIBRARY</div><h1>每个词，都有你的读法<span>。</span></h1><p>正文中的修改会自动出现在这里，并持续应用于你的日文文章。</p></div><button class="button primary" id="addRuleButton">＋ 添加个人规则</button></div>
+        <div class="rules-summary"><div><span class="metric-number" id="ruleTotal">2</span><span>条个人规则</span></div><div><span class="summary-check">✓</span><span>保存后立即用于后续合成<br><small>个人偏好，随下一次朗读生效。</small></span></div><div><span class="tiny-label">RULE SCOPE</span><strong>当前文章 + 以后文章</strong></div></div>
+        <div class="rules-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="ruleSearch" type="search" placeholder="搜索词汇或读法" aria-label="搜索个人规则"></label><span id="rulesCountNote" class="small-note"></span></div>
+        <div class="table-wrap"><table class="rules-table"><thead><tr><th>日文词汇</th><th>指定读法</th><th>应用范围</th><th>当前文章</th><th>操作</th></tr></thead><tbody id="rulesTableBody"></tbody></table><div id="rulesEmpty" class="table-empty" hidden>还没有匹配的规则。可以回到正文选词，或添加一条个人规则。</div></div>
+        <div class="rules-footer"><span>原文不会被改写。只对实际朗读应用你的读法。</span><button class="text-button" data-view="workbench">回到正文修正发音 →</button></div>
+      </section>
+
+<section id="accountView" class="view" hidden><div class="page-heading"><div><div class="eyebrow">YOUR SPACE</div><h1>你的账户，你的读法<span>。</span></h1><p>管理显示名称和个人朗读偏好。</p></div></div><div class="account-grid"><section class="settings-card"><h2>账户资料</h2><div class="current-account"><span class="avatar large" id="profileAvatar"></span><div><strong id="profileName"></strong><small id="profileLogin"></small></div></div><form id="profileForm"><label class="field-label" for="displayName">显示名称</label><input id="displayName" required maxlength="40" autocomplete="nickname"><p id="profileError" class="inline-error" role="alert" hidden></p><button class="button primary" id="profileSave">保存资料</button></form></section><section class="settings-card"><h2>数据与登录</h2><p class="dialog-description">本机账户 · 个人读法保存在此浏览器。清除网站数据会移除账户和读法。</p><dl class="account-details"><dt>个人读法</dt><dd id="profileRules"></dd><dt>文章</dt><dd>仅在当前页面保留</dd><dt>朗读方式</dt><dd>本机日文系统音色</dd></dl><button class="button secondary" id="logoutButton">退出登录</button></section></div></section>
+<footer class="page-footer"><span>YOMI <i>·</i> 让文字保留原样，让读法更合心意。</span></footer></main></div>
+<section id="authView" class="auth-page" hidden><div class="auth-story"><a class="brand" href="#login"><span class="brand-mark">よ</span><span>YOMI<small>日文语音工作台</small></span></a><div><span class="eyebrow">READ IT YOUR WAY</span><h1>文字有原样。<br>声音，有你的偏好。</h1><p lang="ja">ことばを、あなたの読み方で。</p><div class="auth-paper" lang="ja">旅の途中で出会った<br>言葉を、ひとつずつ。<br><ruby>日本橋<rt>にほんばし</rt></ruby>から、次の景色へ。</div></div><small>每一次修正，都会留给下一篇文章。</small></div><div class="auth-content"><div class="auth-box"><span class="eyebrow">YOUR PERSONAL SPACE</span><h1 id="authTitle">欢迎回来</h1><p id="authLead">登录本机账户，继续你的朗读。</p><div id="sessionNotice" class="inline-error" role="alert" hidden></div><form id="authForm"><div id="registerNameField" hidden><label class="field-label" for="registerName">显示名称</label><input id="registerName" maxlength="40" autocomplete="nickname"></div><label class="field-label" for="authName">账户名称</label><input id="authName" required minlength="2" maxlength="40" autocomplete="username" placeholder="输入账户名称"><label class="field-label" for="authPassword">密码</label><div class="password-field"><input id="authPassword" required minlength="8" maxlength="128" type="password" autocomplete="current-password" placeholder="至少 8 位字符"><button id="togglePassword" type="button" class="text-button" aria-label="显示密码">显示</button></div><div id="confirmField" hidden><label class="field-label" for="confirmPassword">确认密码</label><input id="confirmPassword" type="password" autocomplete="new-password"></div><p id="authError" class="inline-error" role="alert" hidden></p><button id="authSubmit" class="button primary full">登录</button></form><p class="auth-switch" id="authSwitch"></p><p class="small-note">本机账户仅在此浏览器使用，数据不会同步到其他设备。</p></div></div></section>
+<div id="selectionToolbar" class="selection-toolbar" hidden><span id="selectionPreview"></span><button id="editSelectionButton">修改读法 ↗</button></div><div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="articleDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">NEW ARTICLE</span><h2>开始一篇新文章</h2></div><button class="icon-button" aria-label="关闭">×</button></form><p class="dialog-description">个人读法规则会继续使用。替换后，当前文章将不再保留；个人读法不受影响。</p><div class="sample-actions"><button class="button secondary compact" id="loadSampleOne">京都的早晨</button><button class="button secondary compact" id="loadSampleTwo">旅途的记忆</button><button class="text-button" id="loadBlank">清空</button></div><label class="field-label" for="newArticleTitle">文章标题</label><input id="newArticleTitle" value="旅の記憶"><label class="field-label" for="newArticleText">日文正文</label><textarea id="newArticleText" rows="7" lang="ja"></textarea><div class="dialog-footer"><button class="button secondary" id="cancelArticle">取消</button><button class="button primary" id="applyArticle">使用这篇文章</button></div></dialog>
+
+  <dialog id="ruleDialog"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">PERSONAL RULE</span><h2 id="ruleDialogTitle">添加个人规则</h2></div><button class="icon-button" aria-label="关闭">×</button></form><form id="modalRuleForm"><label class="field-label" for="modalWord">日文词汇</label><input id="modalWord" lang="ja" autocomplete="off"><label class="field-label" for="modalReading">指定读法</label><input id="modalReading" lang="ja" autocomplete="off" placeholder="例如：きょうと"><div class="scope-callout"><strong>当前及以后文章都会使用</strong><p>保存的是个人规则，不会改写文章中的原始文字。</p></div><p id="modalRuleError" class="inline-error" role="alert" hidden></p><div class="dialog-footer"><button class="button secondary" type="button" id="cancelModalRule">取消</button><button class="button primary" type="submit" id="modalSave">保存个人规则</button></div></form></dialog>
+
+  <dialog id="confirmDialog"><div class="dialog-heading"><div><span class="eyebrow">DELETE PERSONAL RULE</span><h2>删除这条个人规则？</h2></div></div><p id="deleteDescription" class="dialog-description"></p><p class="small-note">这会影响当前所有匹配处和以后文章，原文不会删除。已生成音频保持旧结果。</p><p id="deleteError" class="inline-error" role="alert" hidden></p><div class="dialog-footer"><button class="button secondary" id="cancelDelete">保留规则</button><button class="button danger-button" id="confirmDelete">删除个人规则</button></div></dialog>
+
+<dialog id="readingDialog" aria-labelledby="readingTitle"><form method="dialog" class="dialog-heading"><div><span class="eyebrow">PERSONAL READING</span><h2 id="readingTitle">修改词汇读法</h2></div><button class="icon-button" aria-label="关闭">×</button></form><form id="readingForm"><label class="field-label" for="selectedWord">原词</label><input id="selectedWord" readonly lang="ja"><label class="field-label" for="readingInput">指定读法</label><input id="readingInput" required lang="ja" autocomplete="off" placeholder="例如：にほんばし"><div class="scope-callout"><strong>当前及以后文章都会使用</strong><p>当前正文有 <b id="occurrenceCount">0</b> 处匹配。原文保持不变。</p></div><p id="existingRuleNotice" class="small-note"></p><p id="saveError" class="inline-error" role="alert" hidden></p><div class="form-actions"><button class="text-button" id="previewReading" type="button">试听读法</button><button class="text-button danger" id="deleteRuleButton" type="button" hidden>删除个人规则</button></div><div class="dialog-footer"><button class="button secondary" id="cancelRuleButton" type="button">取消</button><button class="button primary" id="saveRuleButton">保存个人规则</button></div></form></dialog>
+<dialog id="guideDialog" aria-label="使用指引"><form method="dialog" class="dialog-heading"><h2>让朗读更合心意</h2><button class="icon-button" aria-label="关闭">×</button></form><ol class="guide-list"><li><b>输入文章，生成并聆听</b><p>选择日文音色，调整适合自己的语速。</p></li><li><b>直接在正文选中词汇</b><p>用鼠标、触屏或 Shift + 方向键选择文字，再点击“修改读法”。</p></li><li><b>保存读法，再次朗读</b><p>同词共用一个个人读法，当前和以后文章都会采用。修改后需要重新生成。</p></li></ol></dialog>
+</body></html>

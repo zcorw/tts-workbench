@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-06T09:53:55.271Z",
+  "base": "http://127.0.0.1:4182/",
+  "contract": "1.0.1",
+  "sha256": "d27c2f7bd8560e2098215ee449922b48cc64057712416d2b58f0787a5d7e69e6",
+  "checks": [
+    "Login and registration HTML minlength=8, maxlength=128, no conflicting pattern",
+    "7-character input rejected by schema and native validity without authentication request",
+    "8-character input is natively valid and submits from both actual served forms"
+  ],
+  "submissions": [
+    {
+      "endpoint": "/v1/auth/login",
+      "passwordLength": 8
+    },
+    {
+      "endpoint": "/v1/auth/register",
+      "passwordLength": 8
+    }
+  ],
+  "errors": []
+}

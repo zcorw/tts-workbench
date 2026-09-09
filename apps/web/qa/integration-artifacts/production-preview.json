@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-06T04:58:07.998Z",
+  "checks": [
+    "Production dist JS/CSS served successfully",
+    "All hash-route direct entries and reloads protect unauthenticated pages",
+    "No source-module runtime or page errors"
+  ],
+  "assets": [
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 200
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 200
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-CDv6F-Cm.js",
+      "status": 304
+    },
+    {
+      "path": "/assets/index-BEByDMU9.css",
+      "status": 304
+    }
+  ],
+  "errors": []
+}
