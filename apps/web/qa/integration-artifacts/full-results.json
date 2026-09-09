@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-09T15:15:41.443Z",
+  "date": "2026-09-09T15:41:59.346Z",
   "origin": "http://127.0.0.1:4181/",
   "checks": [
     "真实PG账户注册且不自动登录",
@@ -86,7 +86,7 @@
       "status": 201
     },
     {
-      "path": "/v1/articles/d13afebf-7d4a-416d-88ff-2e6cecbe922a",
+      "path": "/v1/articles/c585fa52-544c-469d-bd74-f5b85446edbc",
       "status": 200
     },
     {
@@ -102,10 +102,6 @@
       "status": 201
     },
     {
-      "path": "/v1/articles/f8d35e54-bf36-4634-8bf0-f880dd71ee15",
-      "status": 200
-    },
-    {
       "path": "/v1/config",
       "status": 200
     },
@@ -118,7 +114,7 @@
       "status": 200
     },
     {
-      "path": "/v1/articles/f8d35e54-bf36-4634-8bf0-f880dd71ee15",
+      "path": "/v1/articles/2fa4305f-f5d5-4840-98e4-21454f745787",
       "status": 200
     },
     {
@@ -130,7 +126,7 @@
       "status": 200
     },
     {
-      "path": "/v1/vocabulary/ad100016-c8d1-43ef-b03f-4c1d49bb3ace",
+      "path": "/v1/vocabulary/00f83633-3533-45df-a69e-0c0a5471e516",
       "status": 409
     },
     {
@@ -146,7 +142,7 @@
       "status": 200
     },
     {
-      "path": "/v1/articles/f8d35e54-bf36-4634-8bf0-f880dd71ee15",
+      "path": "/v1/articles/2fa4305f-f5d5-4840-98e4-21454f745787",
       "status": 200
     },
     {
@@ -154,11 +150,11 @@
       "status": 200
     },
     {
-      "path": "/v1/articles/f8d35e54-bf36-4634-8bf0-f880dd71ee15",
+      "path": "/v1/articles/2fa4305f-f5d5-4840-98e4-21454f745787",
       "status": 200
     },
     {
-      "path": "/v1/vocabulary/e0d8e7a1-1fe7-4110-b49d-fc99b3bd15bc",
+      "path": "/v1/vocabulary/9483f027-86ba-4d89-bac3-fb90f574510c",
       "status": 204
     },
     {
@@ -166,7 +162,7 @@
       "status": 200
     },
     {
-      "path": "/v1/vocabulary/ad100016-c8d1-43ef-b03f-4c1d49bb3ace",
+      "path": "/v1/vocabulary/00f83633-3533-45df-a69e-0c0a5471e516",
       "status": 204
     },
     {

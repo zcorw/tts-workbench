@@ -278,6 +278,55 @@ class AuthController {
     await this.state.articles.remove(requireAccount(req).id, id, revision);
     res.status(204).end();
   }
+  @Post("v1/articles/:id/audio") async generateArticleAudio(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const owner = requireAccount(req).id;
+    const controller = new AbortController();
+    const cancel = () => {
+      if (!res.writableEnded) controller.abort("client");
+    };
+    res.on("close", cancel);
+    try {
+      const result = await this.state.articles.generate(
+        owner,
+        id,
+        body,
+        this.state.speech,
+        controller.signal,
+        (req as ApiRequest).requestId,
+      );
+      res.status(200).json(result);
+    } finally {
+      res.off("close", cancel);
+    }
+  }
+  @Get("v1/articles/:id/audio") async getArticleAudio(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param("id") id: string,
+    @Query() query: unknown,
+  ) {
+    const result = await this.state.articles.audio(
+      requireAccount(req).id,
+      id,
+      query,
+    );
+    res
+      .set({
+        "Content-Type": "audio/mpeg",
+        "Content-Length": String(result.data.length),
+        "Content-Disposition": `inline; filename="${result.metadata.filename}"`,
+        "X-Pronunciation-Version": String(result.metadata.ruleVersion),
+        "X-Audio-Id": result.metadata.audioId,
+        "X-Article-Content-Revision": String(result.metadata.contentRevision),
+      })
+      .status(200)
+      .send(result.data);
+  }
   @Get("v1/voices") voices(@Req() req: Request) {
     return this.state.speech.voices(requireAccount(req).id);
   }
@@ -401,7 +450,7 @@ export async function createApplication(config: Config) {
   });
   server.use((req: Request, res: Response, next: NextFunction) => {
     if (
-      req.path.startsWith("/v1") &&
+      /^\/v1(?:\/|$)/i.test(req.path) &&
       ((req.get("Origin") && req.get("Origin") !== config.PUBLIC_ORIGIN) ||
         (!["GET", "HEAD", "OPTIONS"].includes(req.method) &&
           req.get("Origin") !== config.PUBLIC_ORIGIN))
@@ -446,8 +495,12 @@ export async function createApplication(config: Config) {
   });
   server.use("/v1", csrf.csrfSynchronisedProtection);
   server.use(
-    "/v1/audio",
     rateLimit({
+      skip: (req) =>
+        req.method !== "POST" ||
+        !/^\/v1\/(?:audio\/(?:speech|preview)|articles\/[^/]+\/audio)\/?$/i.test(
+          req.path,
+        ),
       windowMs: 60000,
       limit: 10,
       standardHeaders: "draft-8",

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { savedAudio } = require('./saved-audio-fixture.cjs');
 require('./contract-check.cjs');
 const base = process.env.BASE_URL || 'http://127.0.0.1:4181/';
 const out = path.join(__dirname, 'articles-artifacts');
@@ -92,7 +93,7 @@ async function fixture(context) {
     }
     if (endpoint === '/v1/auth/me') return send(state.current);
     if (endpoint === '/v1/voices')
-      return send({ items: [{ id: 'qa-ja', name: '测试日文音色', language: 'ja-JP' }] });
+      return send({ items: state.voices || [{ id: 'qa-ja', name: '测试日文音色', language: 'ja-JP' }] });
     if (endpoint === '/v1/vocabulary' && method === 'GET')
       return send({
         items: state.rules,
@@ -145,6 +146,7 @@ async function fixture(context) {
       state.rows.unshift(a);
       return send(a, 201);
     }
+    if (/^\/v1\/articles\/[^/]+\/audio$/.test(endpoint)) return savedAudio({route,state,article:state.rows.find(a=>a.id===endpoint.split('/')[3]),body,method,url,send,error,version:state.version});
     if (endpoint.startsWith('/v1/articles/')) {
       const a = state.rows.find((a) => a.id === endpoint.split('/').at(-1));
       if (!a) return error('NOT_FOUND', 404);
@@ -214,7 +216,7 @@ async function chooseWord(p, word) {
   }, word);
   await p.locator('#editSelected').click();
 }
-(async () => {
+if (require.main === module) (async () => {
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
@@ -259,12 +261,12 @@ async function chooseWord(p, word) {
     ok('原字选词、同词规则、候选试听不保存');
     await p.locator('#generateButton').click();
     await p.locator('#audioResult').waitFor();
-    assert.equal(first.audio, null);
-    assert(await p.getByText('当前音频仅在本页面临时提供。', { exact: false }).isVisible());
+    assert(first.audio?.audioId);
+    assert(await p.getByText('每篇保留最后一次成功生成的音频', { exact: false }).isVisible());
     const download = p.waitForEvent('download');
     await p.locator('#downloadButton').click();
     await download;
-    ok('F1临时MP3下载且不调用持久音频');
+    ok('已保存MP3下载');
     await p.locator('#articleTitle').fill('未保存标题');
     await p.locator('[data-view="articles"]').click();
     await p.locator('#unsavedDialog').waitFor();
@@ -343,7 +345,7 @@ async function chooseWord(p, word) {
     await p.locator('#saveArticle').click();
     await saved(p);
     ok('保存中编辑保持脏状态、后续保存使用新revision');
-    const speechCount = state.requests.filter((r) => r.endpoint === '/v1/audio/speech').length;
+    const speechCount = state.requests.filter((r) => r.method === 'POST' && r.endpoint.endsWith('/audio')).length;
     await text(p, '生成前先保存。');
     const generateGate = deferred();
     state.gate = generateGate;
@@ -354,7 +356,7 @@ async function chooseWord(p, word) {
     generateGate.resolve();
     await p.getByText(/已保存提交时的内容/).waitFor();
     assert.equal(
-      state.requests.filter((r) => r.endpoint === '/v1/audio/speech').length,
+      state.requests.filter((r) => r.method === 'POST' && r.endpoint.endsWith('/audio')).length,
       speechCount,
     );
     await p.locator('#saveArticle').click();
@@ -472,7 +474,7 @@ async function chooseWord(p, word) {
     await p.locator('#generateButton').click();
     await p.locator('#audioResult').waitFor();
     assert.equal(state.rows.length, 1);
-    ok('新文章一次点击先创建再临时生成');
+    ok('新文章一次点击先创建再持久生成');
     state.rows.push(...Array.from({ length: 99 }, (_, i) => state.make('配额' + i)));
     await p.locator('#newArticleButton').click();
     await p.waitForURL('**/#/articles/new');
@@ -485,7 +487,7 @@ async function chooseWord(p, word) {
     assert.equal(await p.locator('#articleTitle').inputValue(), '达到上限仍保留');
     assert.equal(state.rows.length, 100);
     ok('ARTICLE_LIMIT提示且保留新文章草稿');
-    assert(!state.requests.some((r) => /\/articles\/[^/]+\/audio/.test(r.endpoint)));
+    assert(!state.requests.some((r) => r.endpoint === '/v1/audio/speech'));
     assert.equal(await p.evaluate(() => localStorage.length), 0);
     assert.deepEqual(errors, []);
     fs.writeFileSync(
@@ -508,3 +510,5 @@ async function chooseWord(p, word) {
   console.error(e);
   process.exit(1);
 });
+
+module.exports = {fixture,deferred,chooseWord};

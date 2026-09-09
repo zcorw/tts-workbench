@@ -1,6 +1,6 @@
 # 技术架构与集成设计
 
-当前实施状态（v0.9）：账户独立包、Nest API、React前端和Gateway日文规则链路已落地，应用通过vendor内账户0.1.1/Gateway0.1.0 tgz消费独立工程；当前OpenAPI1.0.1基于已评审1.0.0调整密码下限为8。下文保留设计沿革，实际运行与验收以[运维说明](operations.md)和[TODO](../TODO.md)为准；旧“仅文档/拟建”叙述不代表当前未实现。
+当前实施状态（v1.0）：账户独立包、Nest API、React前端、文章CRUD与最新音频存储、Gateway日文规则链路已落地，应用通过vendor内账户0.1.1/Gateway0.1.1 tgz消费独立工程；当前OpenAPI1.1.0，密码范围8–128。下文保留设计沿革，实际运行与验收以[运维说明](operations.md)和[TODO](../TODO.md)为准；旧“仅文档/拟建”叙述不代表当前未实现。
 
 实际成熟工具：账户核心使用Zod和@node-rs/argon2，HTTP Session适配使用express-session+connect-pg-simple，CSRF按有状态会话模式使用csrf-sync；不再自写签名token协议。匿名CSRF借助HttpOnly wb_session绑定，登录regenerate、退出destroy后重新获取，服务器记录1小时有效期；数据库只存Session ID标准SHA256摘要。PostgreSQL通过pg参数化SQL实现账户/规则业务事务，node-pg-migrate负责迁移锁与版本。账户核心无Express/TTS，HTTP可选适配放account-postgres/session子入口。
 
@@ -235,11 +235,11 @@ T030完成音色/配置/路由/adapter/默认语言能力；T031完成快照与�
 
 待实施参数只有VPS地址/系统与CPU架构、SSH部署身份和主机指纹、宿主入口端口、域名/TLS、镜像仓库、触发策略和部署目录等；Docker Compose、GitHub Actions、远程VPS及单loopback端口加宿主Nginx入口不再作为平台待选项。日文真实音色验收仍由T024在具备授权凭据时完成，部署健康检查不自动触发付费TTS。
 
-## 13. 文章管理与最后成功音频（API 1.1.0，F1已通过验收）
+## 13. 文章管理与最后成功音频（API 1.1.0，F2已通过验收）
 
-本节为2026-09-09三方定稿的新方向，覆盖旧章节“正文/音频不持久化”的产品范围；P0契约已完成；F1账户隔离文章CRUD及前端闭环已实现，前端与产品统一验收已通过，等待产品提交。F2音频持久化尚未实施，当前文章响应audio=null、audioStale=false。仅保留每篇最新已保存title/text和一份最后成功音频，不提供正文或音频历史。账户、密码8–128、ja-JP和同词唯一默认规则保持。详见[文章方案](ARTICLE_MANAGEMENT.md)与[唯一契约](openapi.yaml)。
+本节为2026-09-09三方定稿的新方向，覆盖旧章节“正文/音频不持久化”的产品范围；P0契约已完成；F1账户隔离文章CRUD及前端闭环已实现，已由产品提交2dd6d47。F2音频持久化已实现，前后端及产品统一验收均通过；无成功音频时audio=null、audioStale=false。仅保留每篇最新已保存title/text和一份最后成功音频，不提供正文或音频历史。账户、密码8–128、ja-JP和同词唯一默认规则保持。详见[文章方案](ARTICLE_MANAGEMENT.md)与[唯一契约](openapi.yaml)。
 
-建议wb_articles保存account_id、title、text、revision、content_revision、generation_seq及时间；wb_article_audio以article_id为唯一主键/外键ON DELETE CASCADE，保存<=8388608字节的bytea及audioId、contentRevision、实际ruleVersion、voice/speed、格式、字节数/字符数、文件名、生成时间和成功generation序号。列表只读metadata，不取正文/音频字节。PG事务原子替换音频，不新增文件存储服务。备份/WAL/MVCC仍按数据库运维策略保留，不将“业务无历史”承诺为物理即时擦除。
+wb_articles保存account_id、title、text、revision、content_revision、generation_seq及时间；wb_article_audio以article_id为唯一主键/外键ON DELETE CASCADE，保存<=8388608字节的bytea及audioId、contentRevision、实际ruleVersion、voice/speed、格式、字节数/字符数、文件名、生成时间和成功generation序号。列表只读metadata，不取正文/音频字节。PG事务原子替换音频，不新增文件存储服务。备份/WAL/MVCC仍按数据库运维策略保留，不将“业务无历史”承诺为物理即时擦除。
 
 F1已新增部署参数MAX_ARTICLES，正整数，默认100（团队工程默认而非用户原话），GET /v1/config返回maxArticles。账户锁或等效事务边界下原子校验容量并创建，超限409 ARTICLE_LIMIT，删除释放名额。每篇单份8MiB音频意味着默认当前音频逻辑总量最多800MiB/账户，不包括数据库开销、旧MVCC版本及备份；本轮不增加独立总配额系统。
 
@@ -251,4 +251,10 @@ POST文章audio返回持久化JSON metadata；GET文章audio必须带audioId，�
 
 实施分期：P0规划契约提交后，F1文章CRUD垂直闭环（后端迁移/API、前端列表/新建/详情/保存/删除、冲突与离开保护）；验收后由产品commit，再授权F2最后成功音频垂直闭环（存储/恢复/播放下载/过期/并发/删除在途/限流）。后端和前端不stage/commit；不提前标完成、不改账户/Gateway、不执行远程部署。
 
-F1实现记录（2026-09-10）：wb_articles迁移已实现正文、双版本和所有权外键；generation_seq及wb_article_audio留待F2。ArticleService使用账户行锁串行化写入并原子检查容量，列表计数及分页使用同一可重复读快照。真实HTTP/PostgreSQL测试覆盖跨账户404、并发容量/版本、原文保留与应用重启持久化；后端全套5项通过，0跳过。产品独立HTTP验收7组通过。F1前端浏览器验收及产品独立真实浏览器CRUD、源码与截图回读均通过，F1整体已通过验收，等待产品提交；F2保持未开始。
+F1实现记录（2026-09-10）：wb_articles迁移已实现正文、双版本和所有权外键；generation_seq及wb_article_audio留待F2。ArticleService使用账户行锁串行化写入并原子检查容量，列表计数及分页使用同一可重复读快照。真实HTTP/PostgreSQL测试覆盖跨账户404、并发容量/版本、原文保留与应用重启持久化；后端全套5项通过，0跳过。产品独立HTTP验收7组通过。F1前端浏览器验收及产品独立真实浏览器CRUD、源码与截图回读均通过，F1整体已通过验收并提交2dd6d47；以下F2记录为当前状态。
+
+F2后端实现记录（2026-09-10）：迁移1789056000000-article-audio.cjs新增bigint准入序号及唯一wb_article_audio行；metadata JSONB和bytea在同事务upsert，外键级联删除。序号只比较最后成功行，准入序号不改变文章revision或updatedAt。供应商调用复用SpeechService返回的实际规则版本；完成事务在账户锁、文章锁取得后及提交前再次检查取消。GET以所有权、articleId和audioId单次查询获取一致metadata/字节，列表不读取bytea。三个生成POST共享10次/分钟/账户的入口限流，大小写与尾斜杠变体一致；已存音频GET不占池。Origin检查与框架大小写语义一致。真实PG/Gateway transport并发、取消、HTTP、重启及全库备份恢复通过；仅使用可播放测试音调，无付费调用；F2前端和产品验收均通过。
+
+F2依赖修正（2026-09-10）：产品在Gateway提交c86b5e2修复合法0.01语速步进的浮点误拒；应用已消费vendor/tts-gateway-0.1.1.tgz并更新API package/锁，移除旧0.1.0包。更新后完整后端6项再次通过、0跳过，真实HTTP文章合成覆盖speed=1.15且metadata保持1.15；隔离3002/3003已重启，生产8080未改。
+
+F2产品独立验收（2026-09-10）：3003真实HTTP7组PASS，覆盖metadata/40585字节及响应头、跨账户404/缺audioId400、标题与正文过期差异、失败保留/成功替换旧ID404、规则版本过期、重登参数恢复和删除后404。4183真实浏览器5组PASS：一次点击保存并以1.15生成、实际解码播放暂停下载、刷新恢复、标题/正文/供应商失败保留旧音频、1.25再次生成替换及390宽布局。下载SHA256与备份恢复记录一致，浏览器errors=[]，产品已回看截图。后端必要检查已完成，文件冻结；F2前端最终报告已通过产品核对，整体通过验收并由产品统一提交。

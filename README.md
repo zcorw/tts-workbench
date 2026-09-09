@@ -2,7 +2,9 @@
 
 React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默认保存为本人规则，适用于当前及以后文章；原文保持不变，没有“仅此处”分支。
 
-真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。“我的文章”支持搜索分页、新建、打开、编辑保存与删除，保存时覆盖最新标题和正文，并提供冲突与未保存离开保护。每篇最新音频持久化进入下一功能阶段，详见[文章管理增量](docs/ARTICLE_MANAGEMENT.md)。无供应商配置时，音色目录为空、合成返回503；本地协议测试不代表真实日文发音效果验收。
+真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。“我的文章”支持搜索分页、新建、打开、编辑保存与删除。每篇只保存最新标题正文和最后成功音频；刷新或重新登录后可继续编辑、播放与下载。详见[文章管理增量](docs/ARTICLE_MANAGEMENT.md)。无供应商配置时，音色目录为空、合成返回503；本地协议测试不代表真实日文发音效果验收。
+
+在“我的文章”新建或打开文章，编辑后点击“保存文章”。点击“生成语音”会先保存当前修改，再使用已保存正文生成；成功后替换上一次音频，失败保留旧音频。正文、个人读法或朗读设置变化后会提示重新生成。删除文章会一并删除音频，个人读法仍保留；不提供文章或音频历史版本。
 
 ## 首次部署后：先创建登录账号
 
@@ -19,7 +21,7 @@ React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默�
 
 Windows Docker Compose 一键重建：准备 `.env` 并启动 Docker Desktop 后，双击根目录 `rebuild.cmd` 或执行 `.\rebuild.cmd`；无缓存用 `.\rebuild.cmd --no-cache`。保留数据库卷，端口读取 `APP_HOST_PORT`（默认8080），完成后显示实际访问地址。配置与已有项目数据说明见[运维说明](docs/operations.md#windows-一键重建-docker-compose)。
 
-当前运行的开发页面：[打开工作台](http://127.0.0.1:4181/)，API为127.0.0.1:3000。前端通过Vite代理/v1和/health；当前隔离开发环境允许注册测试账户，生产默认关闭。
+当前运行的开发页面：[打开工作台](http://127.0.0.1:4181/)，API为127.0.0.1:3000，两者已接入文章及最新音频功能。前端通过Vite代理/v1和/health；当前隔离开发环境允许注册测试账户，尚未配置供应商。现有8080实例没有重建，代码提交不等于已经更新该实例。
 
 ```sh
 npm ci
@@ -46,7 +48,7 @@ npm --prefix apps/web run dev
 - apps/web：React、Radix Dialog、React Hook Form/Zod、React Router、TanStack Query。
 - apps/api：Nest、Zod、express-session、csrf-sync、PostgreSQL/pg、node-pg-migrate。
 - 独立账户工程：相邻nest-account，提供account-core/account-postgres两个0.1.1包及可选session适配入口。
-- 独立Gateway：相邻TTS-gateway，提供0.1.0库入口、宿主注入和ja-JP规则执行。
+- 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
 唯一[OpenAPI 1.1.0](docs/openapi.yaml)含24个操作，规范校验、前端生成类型和[产品契约评审](docs/API_REVIEW.md)通过。新增文章7操作的运行交付状态见[增量计划](docs/ARTICLE_MANAGEMENT.md)，接口修改须同步契约和前端生成类型。
@@ -61,6 +63,6 @@ npm --prefix apps/web run dev
 
 ## 验证与文档
 
-Gateway：224项单测、16项HTTP回归；账户：3项真实PG测试及独立Nest消费者；应用：3项真实HTTP/PG集成测试（供应商响应使用测试夹具）；前端：22项契约与13项真实API/PG交互检查通过。测试夹具不代表真实日文音频通过。
+本次增量：应用完整6项真实HTTP/PG测试、文章与音频备份恢复通过；Gateway语速修复17项定向测试及构建/类型检查通过。产品独立执行文章CRUD接口与浏览器验收、最新音频7组接口与5组浏览器检查，验证真实解码播放下载、失败保留、替换及刷新恢复。前端各组交互、回归与构建记录见[前端报告](apps/web/qa/REPORT.md)。测试音调不代表真实日文发音效果通过。
 
 [开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地Git由产品按完成的功能点提交；尚未推送或远程部署。

@@ -1,6 +1,38 @@
 import type { components } from './schema';
-import { ServiceError, type Services, type Rule, type MediaResult } from '../types';
+import { z } from 'zod';
+import {
+  ServiceError,
+  type Services,
+  type Rule,
+  type MediaResult,
+  type ArticleAudio,
+} from '../types';
 type Schema = components['schemas'];
+const audioMetadata = z.object({
+  audioId: z.uuid(),
+  contentRevision: z.number().int().min(1),
+  ruleVersion: z.number().int().min(0),
+  voice: z.string().min(1),
+  speed: z.number().min(0.5).max(2),
+  language: z.literal('ja-JP'),
+  format: z.literal('mp3'),
+  mimeType: z.literal('audio/mpeg'),
+  byteLength: z.number().int().min(1).max(8388608),
+  characterCount: z.number().int().min(1).max(10000),
+  createdAt: z.string().refine((v) => Number.isFinite(Date.parse(v))),
+  filename: z
+    .string()
+    .min(1)
+    .regex(/^[^/\\\u0000-\u001f]+\.mp3$/i),
+});
+const audioResponse = z.object({
+  articleId: z.uuid(),
+  revision: z.number().int().min(1),
+  contentRevision: z.number().int().min(1),
+  currentRuleVersion: z.number().int().min(0),
+  audio: audioMetadata,
+  audioStale: z.boolean(),
+});
 let csrf: Schema['Csrf'] | null = null;
 let csrfPromise: Promise<string> | null = null;
 const errors: Record<string, string> = {
@@ -11,6 +43,8 @@ const errors: Record<string, string> = {
   REVISION_CONFLICT: '规则已在另一窗口更新。本次未保存，请关闭后重新打开规则。',
   VOCABULARY_LIMIT: '个人读法已达到数量上限。',
   ARTICLE_LIMIT: '文章数量已达到上限，请先删除不需要的文章后重试。',
+  ARTICLE_CONTENT_CHANGED: '正文已在生成期间保存了新内容。旧音频仍保留，请确认最新正文后重新生成。',
+  AUDIO_SUPERSEDED: '另一项生成已完成。请重新载入已保存音频。',
   TTS_UNAVAILABLE: '语音服务暂不可用，请稍后重试或联系维护者。',
   DEPENDENCY_UNAVAILABLE: '服务暂不可用，请稍后重试。',
   TTS_PROVIDER_ERROR: '语音生成失败，请主动重试。',
@@ -104,13 +138,20 @@ async function audio(
   path: string,
   body: Schema['Speech'] | Schema['Preview'],
 ): Promise<MediaResult> {
-  const r = await mutation(path, 'POST', body),
-    requestId = r.headers.get('X-Request-Id') || undefined;
+  return decodeAudio(await mutation(path, 'POST', body));
+}
+async function decodeAudio(r: Response, expected?: ArticleAudio): Promise<MediaResult> {
+  const requestId = r.headers.get('X-Request-Id') || undefined;
   const length = Number(r.headers.get('Content-Length')),
     versionHeader = r.headers.get('X-Pronunciation-Version'),
     version = Number(versionHeader);
   const invalid = () =>
-    new ServiceError('收到的音频不完整或格式不正确，请重新生成。', 'INVALID_AUDIO', requestId);
+    new ServiceError(
+      '收到的音频不完整或与记录不一致，请重新载入音频。',
+      'INVALID_AUDIO',
+      requestId,
+    );
+  if (expected && !audioMetadata.safeParse(expected).success) throw invalid();
   if (
     r.headers.get('Content-Type')?.split(';')[0].trim() !== 'audio/mpeg' ||
     !Number.isSafeInteger(length) ||
@@ -119,6 +160,14 @@ async function audio(
     versionHeader === null ||
     !Number.isSafeInteger(version) ||
     version < 0
+  )
+    throw invalid();
+  if (
+    expected &&
+    (r.headers.get('X-Audio-Id') !== expected.audioId ||
+      Number(r.headers.get('X-Article-Content-Revision')) !== expected.contentRevision ||
+      version !== expected.ruleVersion ||
+      length !== expected.byteLength)
   )
     throw invalid();
   let blob: Blob;
@@ -141,6 +190,7 @@ async function audio(
       ?.split(/[/\\]/)
       .at(-1)
       ?.replace(/[\u0000-\u001f]/g, '') || 'speech.mp3';
+  if (expected && filename !== expected.filename) throw invalid();
   return {
     blob,
     filename: filename.endsWith('.mp3') ? filename : 'speech.mp3',
@@ -171,8 +221,11 @@ export const httpServices: Services = {
       '/v1/articles?' + new URLSearchParams({ q, offset: String(offset), limit: String(limit) }),
     );
   },
-  article(id) {
-    return json<Schema['ArticleDetail']>(`/v1/articles/${encodeURIComponent(id)}`);
+  async article(id) {
+    const result = await json<Schema['ArticleDetail']>(`/v1/articles/${encodeURIComponent(id)}`);
+    if (result.audio !== null && !audioMetadata.safeParse(result.audio).success)
+      throw new ServiceError('文章音频记录格式不正确，请重新载入文章。', 'INVALID_AUDIO');
+    return result;
   },
   async createArticle(input) {
     return (await mutation('/v1/articles', 'POST', input satisfies Schema['ArticleInput'])).json();
@@ -187,6 +240,28 @@ export const httpServices: Services = {
   },
   async deleteArticle(id, revision) {
     await mutation(`/v1/articles/${encodeURIComponent(id)}?expectedRevision=${revision}`, 'DELETE');
+  },
+  async generateArticleAudio(id, revision, voice, speed) {
+    const r = await mutation(`/v1/articles/${encodeURIComponent(id)}/audio`, 'POST', {
+      expectedRevision: revision,
+      voice,
+      speed,
+    } satisfies Schema['ArticleSynthesis']);
+    if (!r.headers.get('Content-Type')?.includes('application/json'))
+      throw new ServiceError('生成返回格式不正确，请重新载入已保存音频确认结果。', 'INVALID_AUDIO');
+    const parsed = audioResponse.safeParse(await r.json());
+    if (
+      !parsed.success ||
+      parsed.data.articleId !== id ||
+      parsed.data.audio.contentRevision !== parsed.data.contentRevision
+    )
+      throw new ServiceError('生成返回记录不完整，请重新载入已保存音频确认结果。', 'INVALID_AUDIO');
+    return parsed.data;
+  },
+  articleAudio(id, metadata) {
+    return raw(
+      `/v1/articles/${encodeURIComponent(id)}/audio?audioId=${encodeURIComponent(metadata.audioId)}`,
+    ).then((r) => decodeAudio(r, metadata));
   },
   async login(login, password) {
     const body = { login, password } satisfies Schema['Credentials'];

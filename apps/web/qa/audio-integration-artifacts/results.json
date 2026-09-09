@@ -1,0 +1,183 @@
+{
+  "date": "2026-09-09T15:44:17.565Z",
+  "origin": "http://127.0.0.1:4182/",
+  "checks": [
+    "真实新文章一次保存生成，合法1.15语速及JSON→GET音频",
+    "真实下载完整MP3与可控transport字节一致",
+    "真实PG刷新恢复音频/参数/播放且没有付费重试",
+    "真实标题不误过期、正文过期与成功替换使旧audioId404",
+    "真实transport失败保留数据库与播放器旧成功音频",
+    "真实超8MiB响应不替换旧音频",
+    "真实在途草稿隔离与只读恢复服务器成功音频",
+    "真实删除文章及唯一音频、移动端过期状态"
+  ],
+  "errors": [],
+  "responses": [
+    {
+      "path": "/v1/config",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/register",
+      "method": "POST",
+      "status": 201
+    },
+    {
+      "path": "/v1/auth/login",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/voices",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles",
+      "method": "POST",
+      "status": 201
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/config",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/me",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/voices",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/vocabulary",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/auth/csrf",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "PATCH",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "PATCH",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "POST",
+      "status": 502
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "POST",
+      "status": 502
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2/audio",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "PATCH",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/v1/articles/c2837605-a028-479a-95b9-5fb304a89ec2",
+      "method": "DELETE",
+      "status": 204
+    },
+    {
+      "path": "/v1/articles",
+      "method": "GET",
+      "status": 200
+    }
+  ],
+  "note": "Real HTTP/PostgreSQL with isolated in-process playable tone transport. No browser interception, external provider, payment, or pronunciation acceptance. Control restored and article cleaned."
+}

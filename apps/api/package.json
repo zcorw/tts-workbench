@@ -22,7 +22,7 @@
     "pg": "8.23.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "tts-gateway": "file:../../vendor/tts-gateway-0.1.0.tgz",
+    "tts-gateway": "file:../../vendor/tts-gateway-0.1.1.tgz",
     "zod": "4.5.4"
   },
   "devDependencies": {

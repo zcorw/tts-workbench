@@ -30,7 +30,9 @@ export function useArticleDocument(
     draft: blank,
     saved: null as Article | null,
     edits: 0,
+    textEdits: 0,
   });
+  const [loadVersion, setLoadVersion] = useState(0);
   const liveScope = useRef(scope);
   liveScope.current = scope;
   const bypass = useRef(false),
@@ -51,11 +53,13 @@ export function useArticleDocument(
       draft: input,
       saved: value,
       edits: 0,
+      textEdits: 0,
     };
     setDraft(input);
     setSaved(value);
     setError('');
     setConflict(false);
+    setLoadVersion((v) => v + 1);
   }, []);
   useLayoutEffect(() => {
     if (!accountId) {
@@ -67,7 +71,14 @@ export function useArticleDocument(
     if (location.pathname === '/login' || location.pathname === '/register') return;
     if (state.current.scope !== scope) {
       operation.current++;
-      state.current = { scope, initialized: false, draft: { ...blank }, saved: null, edits: 0 };
+      state.current = {
+        scope,
+        initialized: false,
+        draft: { ...blank },
+        saved: null,
+        edits: 0,
+        textEdits: 0,
+      };
       setDraft({ ...blank });
       setSaved(null);
       setError('');
@@ -120,6 +131,7 @@ export function useArticleDocument(
     ),
   );
   const edit = (input: ArticleInput) => {
+    if (input.text !== state.current.draft.text) state.current.textEdits++;
     state.current.draft = input;
     state.current.edits++;
     setDraft(input);
@@ -272,6 +284,12 @@ export function useArticleDocument(
     </>
   );
   return {
+    read: () => state.current,
+    loadVersion,
+    reportConflict: () => {
+      setConflict(true);
+      setError('文章已在另一窗口修改，请确认后重新载入最新版本。');
+    },
     draft,
     saved,
     dirty,

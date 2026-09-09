@@ -7,9 +7,11 @@ import { ErrorNotice, Modal, PageHeading, useAction, useServices } from './share
 export function ArticlesPage({
   accountId,
   maxArticles,
+  currentRuleVersion,
 }: {
   accountId: string;
   maxArticles: number;
+  currentRuleVersion?: number;
 }) {
   const alive = useRef(true);
   useEffect(() => {
@@ -114,7 +116,13 @@ export function ArticlesPage({
                         </time>
                       </div>
                       <span className="article-audio-state">
-                        {a.audio ? (a.audioStale ? '音频需重新生成' : '已有音频') : '无已保存音频'}
+                        {a.audio
+                          ? a.audioStale ||
+                            (currentRuleVersion !== undefined &&
+                              a.audio.ruleVersion !== currentRuleVersion)
+                            ? '音频需重新生成'
+                            : '已有音频'
+                          : '无已保存音频'}
                       </span>
                     </div>
                     <div className="article-row-actions">

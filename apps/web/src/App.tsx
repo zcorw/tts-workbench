@@ -19,7 +19,7 @@ import { RulesPage } from './components/RulesPage';
 import { AccountPage } from './components/AccountPage';
 import { RuleDialog, DeleteRuleDialog, type RuleIntent } from './components/RuleDialogs';
 import { HelpDialog } from './components/ArticleDialog';
-import type { AudioResult } from './components/AudioPlayer';
+import { useArticleAudio } from './useArticleAudio';
 const empty: RuleSet = { items: [], version: 0, total: 0 };
 export function App({ services }: { services: Services }) {
   const client = useQueryClient(),
@@ -60,23 +60,17 @@ export function App({ services }: { services: Services }) {
   const voices = voiceQuery.data || [],
     voiceLoading = !!account && voiceQuery.isPending,
     voiceError = voiceQuery.error ? messageOf(voiceQuery.error) : '';
-  const [voice, setVoice] = useState(''),
-    [speed, setSpeed] = useState(1);
-  const [busy, setBusy] = useState(false),
-    [generationError, setGenerationError] = useState(''),
-    [result, setResult] = useState<AudioResult | null>(null);
   const [intent, setIntent] = useState<RuleIntent | null>(null),
     [deleting, setDeleting] = useState<Rule | null>(null),
     [help, setHelp] = useState(false);
   const owner = useRef<string | null>(null),
     previousOwner = useRef<string | null>(null),
-    request = useRef(0),
+    audioControl = useRef(() => {}),
     returnPage = useRef('articles'),
     lastArticlePage = useRef('articles'),
     documentNavigation = useRef(() => {}),
     previewAudio = useRef<HTMLAudioElement | null>(null),
-    previewUrl = useRef<string | null>(null),
-    busyLock = useRef(false);
+    previewUrl = useRef<string | null>(null);
   owner.current = account?.id || null;
   const navigate = useCallback(
     (p: string) => navigateTo('/' + (p === 'workbench' ? lastArticlePage.current : p)),
@@ -90,12 +84,6 @@ export function App({ services }: { services: Services }) {
     const t = setTimeout(() => setToast(''), 5000);
     return () => clearTimeout(t);
   }, [toast]);
-  useEffect(
-    () => () => {
-      if (result) URL.revokeObjectURL(result.url);
-    },
-    [result?.url],
-  );
   const stopPreview = () => {
     previewAudio.current?.pause();
     previewAudio.current = null;
@@ -103,17 +91,11 @@ export function App({ services }: { services: Services }) {
     previewUrl.current = null;
   };
   const clearAudio = () => {
-    request.current++;
-    setBusy(false);
-    busyLock.current = false;
-    setResult(null);
+    audioControl.current();
     stopPreview();
   };
   const expire = useCallback(() => {
-    request.current++;
-    setBusy(false);
-    busyLock.current = false;
-    setResult(null);
+    audioControl.current();
     stopPreview();
     hadAccount.current = false;
     client.setQueryData(['session'], null);
@@ -138,15 +120,11 @@ export function App({ services }: { services: Services }) {
   documentNavigation.current = doc.allowNavigation;
   const article = doc.draft;
   if (doc.active) lastArticlePage.current = path;
-  const audioScope = useRef({ articleId: '', accountId: account?.id });
+  const audio = useArticleAudio(services, account?.id, doc, voices, set.version, failed);
+  audioControl.current = audio.clear;
+  const { voice, speed, setVoice, setSpeed, busy, result, generate } = audio;
   useEffect(() => {
-    const previous = audioScope.current;
-    if (
-      previous.accountId !== account?.id ||
-      !(previous.articleId === 'new' && doc.saved?.id === doc.routeId)
-    )
-      clearAudio();
-    audioScope.current = { articleId: doc.routeId, accountId: account?.id };
+    stopPreview();
     setIntent(null);
   }, [doc.routeId, account?.id]);
   const refreshRules = async () => {
@@ -174,9 +152,6 @@ export function App({ services }: { services: Services }) {
     if (ruleQuery.error) failed(ruleQuery.error);
     if (voiceQuery.error) failed(voiceQuery.error);
   }, [ruleQuery.error, voiceQuery.error, failed]);
-  useEffect(() => {
-    setVoice((v) => (voices.some((x) => x.id === v) ? v : voices[0]?.id || ''));
-  }, [voiceQuery.data]);
   const saveConfirmed = (result: { entry: Rule; version: number }) => {
     const id = owner.current;
     if (!id) return;
@@ -209,8 +184,6 @@ export function App({ services }: { services: Services }) {
   useEffect(() => {
     document.title = `${account ? pages[page] : path === 'register' ? '创建账户' : '登录'} · YOMI`;
   }, [account, page, path]);
-  const signature = (version: number) =>
-    JSON.stringify([article.text, voice, speed, account?.id, version]);
   async function loggedIn(u: Account) {
     if (previousOwner.current && previousOwner.current !== u.id) {
       clearAudio();
@@ -240,45 +213,6 @@ export function App({ services }: { services: Services }) {
     lastArticlePage.current = 'articles';
     navigate('login');
     notify('已退出登录。');
-  }
-  async function generate() {
-    if (busyLock.current || !account) return;
-    if (doc.saving) return;
-    if (doc.dirty || !doc.saved) {
-      if (!(await doc.save())) return;
-    }
-    busyLock.current = true;
-    setBusy(true);
-    setGenerationError('');
-    const token = ++request.current,
-      id = account.id,
-      input = { text: article.text, voice, speed },
-      time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    try {
-      const media = await services.synthesize(input);
-      if (request.current !== token || owner.current !== id) return;
-      if (media.version !== set.version) void client.invalidateQueries({ queryKey: ['rules', id] });
-      setResult({
-        url: URL.createObjectURL(media.blob),
-        filename: media.filename,
-        version: media.version,
-        signature: JSON.stringify([input.text, input.voice, input.speed, id, media.version]),
-        count: [...input.text].length,
-        speed: input.speed,
-        time,
-        requestId: media.requestId,
-      });
-    } catch (e) {
-      if (request.current === token) {
-        setGenerationError(messageOf(e));
-        failed(e);
-      }
-    } finally {
-      if (request.current === token) {
-        setBusy(false);
-        busyLock.current = false;
-      }
-    }
   }
   async function fetchPreview(word: string, reading: string, saved = false) {
     const id = owner.current;
@@ -354,6 +288,7 @@ export function App({ services }: { services: Services }) {
               key={account.id}
               accountId={account.id}
               maxArticles={config.maxArticles}
+              currentRuleVersion={ruleQuery.data?.version}
             />
           )}
           {page === 'workbench' && doc.active && !doc.ready && (
@@ -412,8 +347,10 @@ export function App({ services }: { services: Services }) {
               onGenerate={() => void generate()}
               busy={busy}
               result={result}
-              stale={!!result && result.signature !== signature(set.version)}
-              error={generationError}
+              stale={audio.stale}
+              error={audio.error}
+              audioLoading={audio.loading}
+              onReloadAudio={doc.saved ? audio.reload : undefined}
             />
           )}
           {page === 'rules' && (

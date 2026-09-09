@@ -41,6 +41,13 @@ export interface Services {
   createArticle(input: ArticleInput): Promise<Article>;
   updateArticle(id: string, input: ArticleInput, revision: number): Promise<Article>;
   deleteArticle(id: string, revision: number): Promise<void>;
+  generateArticleAudio(
+    id: string,
+    revision: number,
+    voice: string,
+    speed: number,
+  ): Promise<ArticleAudioResponse>;
+  articleAudio(id: string, audio: ArticleAudio): Promise<MediaResult>;
   configuration(): Promise<PublicConfig>;
   session(): Promise<Account | null>;
   login(login: string, password: string): Promise<Account>;
@@ -82,3 +89,5 @@ export type Article = components['schemas']['ArticleDetail'];
 export type ArticleSummary = components['schemas']['ArticleSummary'];
 export type ArticleInput = components['schemas']['ArticleInput'];
 export type ArticlePage = components['schemas']['ArticlePage'];
+export type ArticleAudio = components['schemas']['ArticleAudio'];
+export type ArticleAudioResponse = components['schemas']['ArticleAudioResult'];

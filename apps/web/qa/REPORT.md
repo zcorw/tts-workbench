@@ -1,3 +1,30 @@
+# F2 最新成功音频验收记录（2026-09-10）
+
+本节是当前结果；以下F1和更早记录为历史。API仍固定1.1.0/24操作，指纹未变。主工作区已接入文章持久音频POST JSON + GET MP3，个人词汇试听仍用独立临时接口。
+
+## 本轮验证（计数直接读取结果JSON）
+
+| 命令 | 组数 | 结果文件 |
+|---|---:|---|
+| test:audio | 13 | audio-artifacts/results.json |
+| test:audio:integration | 8 | audio-integration-artifacts/results.json |
+| test:articles | 22 | articles-artifacts/results.json |
+| test:contract | 22 | react-artifacts/results.json |
+| test:articles:integration | 10 | articles-integration-artifacts/results.json |
+| test:integration | 13 | integration-artifacts/full-results.json |
+
+六套全部通过，浏览器errors=[]。build（含typecheck）、check:api、format:check通过。主bundle约536kB/gzip168kB，Vite体积提示不影响构建成功。契约校验临时文件增加进程ID，避免并行套件互相覆盖或删除检查文件。
+
+音频专项覆盖：刷新恢复而不重复POST、标题/正文/实际规则版本及参数过期、失败保留、GET错误ID/正文版本/规则版本/长度/MIME/文件名拒绝、404换ID最多补取一次、连续404停止、用户设置不被迟到恢复覆盖、正文编辑代次和跨文章隔离、丢失POST响应只读恢复、不可用音色仍可播放下载、移动布局。首次404恢复特意使用旧0.85/old-voice→新1.23/qa-ja，验证确实更新参数；手动重载保留当前选择。
+
+真实联调在4182→API3002/PostgreSQL执行，未拦截浏览器HTTP；后端使用进程内可控transport，完整MP3为40585字节，与qa/tone.mp3 SHA256一致。已验证合法1.15语速（产品修复Gateway0.1.1之后）、真实解码播放/下载、刷新恢复、唯一替换后的旧audioId404、transport失败及超8MiB保留旧音频、延迟成功不覆盖正在编辑草稿、只读恢复及文章/音频删除。测试文章已清理，随机账户仍在隔离数据库，控制文件runtime/f2-provider-control.json已在finally恢复{}；没有写入或展示凭据，没有外部供应商或付费请求。
+
+已视觉核对`audio-integration-artifacts/restored-desktop.png`、`audio-integration-artifacts/stale-mobile.png`及协议测试的`audio-artifacts/restored-desktop.png`/`restored-mobile.png`。截图从页首捕获，保存状态、播放器、参数与过期提示清楚，无横向溢出。
+
+本轮apps/web新增useArticleAudio、音频协议/真实联调及共享测试响应文件；更新API边界、文档状态读取、工作区/播放器/列表音频状态、既有测试适配和README。本轮未更改冻结契约、后端或Git；唯一额外写入为后端明确授权的忽略目录测试控制文件。日文供应商发音质量与远程部署仍未验收。
+
+---
+
 # F1 文章管理验收记录（2026-09-10）
 
 本节为本轮结果；下方早期记录保留作历史。API固定1.1.0，指纹16c6c783c77bd55b18cd26de64e261186c971a699ba37bff73b5bd3c075ffa31。前端仅接入五个文章CRUD操作，未接入F2持久音频。

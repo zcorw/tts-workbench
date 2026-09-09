@@ -36,6 +36,8 @@ export function Workspace(p: {
   result: AudioResult | null;
   stale: boolean;
   error: string;
+  audioLoading: boolean;
+  onReloadAudio?: () => void;
 }) {
   const hits = applyRules(p.text, p.set.items).matches;
   const matched = p.set.items.filter((r) => hits.some((m) => m.rule.id === r.id)),
@@ -101,9 +103,16 @@ export function Workspace(p: {
             onSelect={p.onSelect}
             onCopy={p.onCopy}
           />
-          <AudioPlayer result={p.result} stale={p.stale} busy={p.busy} error={p.error} />
+          <AudioPlayer
+            result={p.result}
+            stale={p.stale}
+            busy={p.busy}
+            error={p.error}
+            loading={p.audioLoading}
+            onReload={p.onReloadAudio}
+          />
           <p className="small-note">
-            当前音频仅在本页面临时提供。离开文章或刷新后需重新生成，请及时下载。
+            每篇保留最后一次成功生成的音频，重新打开后仍可播放和下载。生成失败会保留旧音频。
           </p>
         </div>
         <aside className="right-rail">
@@ -121,6 +130,9 @@ export function Workspace(p: {
               onChange={(e) => p.onVoice(e.target.value)}
               disabled={!p.voices.length || p.voiceLoading}
             >
+              {p.voice && !p.voices.some((v) => v.id === p.voice) && (
+                <option value={p.voice}>上次音色（暂不可用）</option>
+              )}
               {!p.voices.length && (
                 <option value="">{p.voiceLoading ? '正在查找音色…' : '暂无可用日文音色'}</option>
               )}
@@ -134,7 +146,9 @@ export function Workspace(p: {
               {p.voiceError ||
                 (!p.voices.length && !p.voiceLoading
                   ? '暂无可用日文音色，请稍后刷新或联系维护者。'
-                  : '选择适合文章的日文音色。')}
+                  : p.voice && !p.voices.some((v) => v.id === p.voice)
+                    ? '上次音色暂不可用，已保存音频仍可播放；生成前请选择可用音色。'
+                    : '选择适合文章的日文音色。')}
             </p>
             <button
               id="retryVoices"
@@ -152,7 +166,7 @@ export function Workspace(p: {
               type="range"
               min={0.5}
               max={2}
-              step={0.05}
+              step={0.01}
               value={p.speed}
               onChange={(e) => p.onSpeed(Number(e.target.value))}
             />
@@ -174,6 +188,7 @@ export function Workspace(p: {
                 p.busy ||
                 p.saving ||
                 !p.voice ||
+                !p.voices.some((v) => v.id === p.voice) ||
                 !p.text.trim() ||
                 count > p.maxText ||
                 bytes > p.maxBytes ||

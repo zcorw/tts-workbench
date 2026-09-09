@@ -15,6 +15,8 @@
     "test:contract": "node qa/react-check.cjs",
     "test:articles": "node qa/articles-check.cjs",
     "test:articles:integration": "node qa/articles-integration.cjs",
+    "test:audio": "node qa/audio-check.cjs",
+    "test:audio:integration": "node qa/audio-integration.cjs",
     "test:integration": "node qa/integration.cjs",
     "format:check": "prettier --check src vite.config.ts",
     "format": "prettier --write src vite.config.ts",

@@ -3,7 +3,9 @@ import { ErrorNotice } from './shared';
 export interface AudioResult {
   url: string;
   filename: string;
-  signature: string;
+  audioId: string;
+  contentRevision: number;
+  voice: string;
   version: number;
   count: number;
   speed: number;
@@ -19,11 +21,15 @@ export function AudioPlayer({
   stale,
   busy,
   error,
+  loading,
+  onReload,
 }: {
   result: AudioResult | null;
   stale: boolean;
   busy: boolean;
   error: string;
+  loading: boolean;
+  onReload?: () => void;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false),
@@ -57,7 +63,15 @@ export function AudioPlayer({
           <h2>听见你的修改</h2>
         </div>
         <span className="status-pill" id="audioStatus" role="status">
-          {busy ? '正在生成…' : stale ? '旧结果 · 需重新生成' : result ? '音频已生成' : '等待生成'}
+          {busy
+            ? '正在生成…'
+            : loading
+              ? '正在载入音频…'
+              : stale
+                ? '旧结果 · 需重新生成'
+                : result
+                  ? '已保存音频'
+                  : '等待生成'}
         </span>
       </div>
       {!result ? (
@@ -73,11 +87,11 @@ export function AudioPlayer({
           </div>
         </div>
       ) : (
-        <div id="audioResult">
+        <div id="audioResult" data-audio-id={result.audioId}>
           <div id="staleBanner" className="stale-banner" hidden={!stale}>
             <span>●</span>
             <div>
-              <strong>内容已更新，需要重新生成</strong>
+              <strong>正文、读法或朗读设置已变化，需重新生成</strong>
               <small>上次生成的音频尚未采用这些修改。</small>
             </div>
           </div>
@@ -151,6 +165,16 @@ export function AudioPlayer({
         </div>
       )}
       <ErrorNotice id="generationError" message={error || playError} />
+      {onReload && (
+        <button
+          id="reloadAudio"
+          className="text-button"
+          disabled={busy || loading}
+          onClick={onReload}
+        >
+          重新载入已保存音频
+        </button>
+      )}
     </section>
   );
 }
