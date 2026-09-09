@@ -13,6 +13,8 @@
     "preview": "vite preview --host 127.0.0.1 --port 4182",
     "generate:api": "openapi-typescript ../../docs/openapi.yaml -o src/api/schema.d.ts",
     "test:contract": "node qa/react-check.cjs",
+    "test:articles": "node qa/articles-check.cjs",
+    "test:articles:integration": "node qa/articles-integration.cjs",
     "test:integration": "node qa/integration.cjs",
     "format:check": "prettier --check src vite.config.ts",
     "format": "prettier --write src vite.config.ts",

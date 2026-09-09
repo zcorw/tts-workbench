@@ -2,7 +2,7 @@
 
 React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默认保存为本人规则，适用于当前及以后文章；原文保持不变，没有“仅此处”分支。
 
-真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。前端真实页面/API/数据库联调通过。当前未配置供应商，音色目录为空、合成返回503；尚未验收真实可听日文。
+真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。“我的文章”支持搜索分页、新建、打开、编辑保存与删除，保存时覆盖最新标题和正文，并提供冲突与未保存离开保护。每篇最新音频持久化进入下一功能阶段，详见[文章管理增量](docs/ARTICLE_MANAGEMENT.md)。无供应商配置时，音色目录为空、合成返回503；本地协议测试不代表真实日文发音效果验收。
 
 ## 首次部署后：先创建登录账号
 
@@ -49,7 +49,7 @@ npm --prefix apps/web run dev
 - 独立Gateway：相邻TTS-gateway，提供0.1.0库入口、宿主注入和ja-JP规则执行。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
-唯一[OpenAPI 1.0.1](docs/openapi.yaml)含17个操作，规范校验和[产品评审](docs/API_REVIEW.md)通过。接口修改须同步契约和前端生成类型。
+唯一[OpenAPI 1.1.0](docs/openapi.yaml)含24个操作，规范校验、前端生成类型和[产品契约评审](docs/API_REVIEW.md)通过。新增文章7操作的运行交付状态见[增量计划](docs/ARTICLE_MANAGEMENT.md)，接口修改须同步契约和前端生成类型。
 
 ## 部署
 
@@ -63,4 +63,4 @@ npm --prefix apps/web run dev
 
 Gateway：224项单测、16项HTTP回归；账户：3项真实PG测试及独立Nest消费者；应用：3项真实HTTP/PG集成测试（供应商响应使用测试夹具）；前端：22项契约与13项真实API/PG交互检查通过。测试夹具不代表真实日文音频通过。
 
-[开发任务](TODO.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本轮没有Git提交、推送或远程部署。
+[开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地Git由产品按完成的功能点提交；尚未推送或远程部署。

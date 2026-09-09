@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import type { Account } from '../types';
 import { Brand } from './shared';
-export const pages = { workbench: '语音工作台', rules: '个人读法规则', account: '账户与设置' };
+export const pages = {
+  articles: '我的文章',
+  workbench: '语音工作台',
+  rules: '个人读法规则',
+  account: '账户与设置',
+};
 export type Page = keyof typeof pages;
 export function Layout({
   account,
@@ -32,7 +37,7 @@ export function Layout({
               aria-current={p === page ? 'page' : undefined}
               onClick={() => onNavigate(p)}
             >
-              <span aria-hidden="true">{['▤', 'あ', '◎'][i]}</span>
+              <span aria-hidden="true">{['▤', '♪', 'あ', '◎'][i]}</span>
               {pages[p]}
               {p === 'rules' && (
                 <span className="nav-index" id="navRuleCount">

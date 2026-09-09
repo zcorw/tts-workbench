@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { createHashRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import { httpServices } from './api/http';
@@ -10,10 +10,9 @@ const client = new QueryClient({
     mutations: { retry: false },
   },
 });
+const router = createHashRouter([{ path: '*', element: <App services={httpServices} /> }]);
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={client}>
-    <HashRouter>
-      <App services={httpServices} />
-    </HashRouter>
+    <RouterProvider router={router} />
   </QueryClientProvider>,
 );

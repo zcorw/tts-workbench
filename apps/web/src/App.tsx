@@ -9,22 +9,23 @@ import {
   type RuleSet,
   type Rule,
 } from './types';
-import { samples } from './domain';
-import { ServiceContext } from './components/shared';
+import { ServiceContext, ErrorNotice } from './components/shared';
+import { useArticleDocument } from './useArticleDocument';
+import { ArticlesPage } from './components/ArticlesPage';
 import { AuthPage } from './components/AuthPage';
 import { Layout, pages, type Page } from './components/Layout';
 import { Workspace } from './components/Workspace';
 import { RulesPage } from './components/RulesPage';
 import { AccountPage } from './components/AccountPage';
 import { RuleDialog, DeleteRuleDialog, type RuleIntent } from './components/RuleDialogs';
-import { ArticleDialog, HelpDialog } from './components/ArticleDialog';
+import { HelpDialog } from './components/ArticleDialog';
 import type { AudioResult } from './components/AudioPlayer';
 const empty: RuleSet = { items: [], version: 0, total: 0 };
 export function App({ services }: { services: Services }) {
   const client = useQueryClient(),
     location = useLocation(),
     navigateTo = useNavigate();
-  const path = location.pathname.replace(/^\//, '') || 'workbench';
+  const path = location.pathname.replace(/^\//, '') || 'articles';
   const configuration = useQuery({ queryKey: ['config'], queryFn: () => services.configuration() });
   const session = useQuery({
     queryKey: ['session'],
@@ -33,12 +34,16 @@ export function App({ services }: { services: Services }) {
     refetchInterval: 60000,
   });
   const account = session.data || null;
-  const config = configuration.data || { registrationOpen: false, maxText: 10000, maxBytes: 49152 };
+  const config = configuration.data || {
+    registrationOpen: false,
+    maxText: 10000,
+    maxBytes: 49152,
+    maxArticles: 100,
+  };
   const booting = configuration.isPending || (configuration.isSuccess && session.isPending),
     bootError = configuration.error || session.error;
   const [notice, setNotice] = useState(''),
-    [toast, setToast] = useState(''),
-    [article, setArticle] = useState(samples[0]);
+    [toast, setToast] = useState('');
   const ruleQuery = useQuery({
     queryKey: ['rules', account?.id],
     queryFn: () => services.rules(),
@@ -62,17 +67,21 @@ export function App({ services }: { services: Services }) {
     [result, setResult] = useState<AudioResult | null>(null);
   const [intent, setIntent] = useState<RuleIntent | null>(null),
     [deleting, setDeleting] = useState<Rule | null>(null),
-    [newArticle, setNewArticle] = useState(false),
     [help, setHelp] = useState(false);
   const owner = useRef<string | null>(null),
     previousOwner = useRef<string | null>(null),
     request = useRef(0),
-    returnPage = useRef<Page>('workbench'),
+    returnPage = useRef('articles'),
+    lastArticlePage = useRef('articles'),
+    documentNavigation = useRef(() => {}),
     previewAudio = useRef<HTMLAudioElement | null>(null),
     previewUrl = useRef<string | null>(null),
     busyLock = useRef(false);
   owner.current = account?.id || null;
-  const navigate = useCallback((p: string) => navigateTo('/' + p), [navigateTo]);
+  const navigate = useCallback(
+    (p: string) => navigateTo('/' + (p === 'workbench' ? lastArticlePage.current : p)),
+    [navigateTo],
+  );
   const setAccount = (u: Account | null) => client.setQueryData(['session'], u);
   const hadAccount = useRef(false);
   const notify = useCallback((m: string) => setToast(m), []);
@@ -113,7 +122,7 @@ export function App({ services }: { services: Services }) {
     setIntent(null);
     setDeleting(null);
     setHelp(false);
-    setNewArticle(false);
+    documentNavigation.current();
     setNotice('登录已失效，请重新登录。当前正文仍保留在此页面。');
     navigate('login');
   }, [client, navigate]);
@@ -125,6 +134,21 @@ export function App({ services }: { services: Services }) {
     },
     [expire, client],
   );
+  const doc = useArticleDocument(services, account?.id, failed);
+  documentNavigation.current = doc.allowNavigation;
+  const article = doc.draft;
+  if (doc.active) lastArticlePage.current = path;
+  const audioScope = useRef({ articleId: '', accountId: account?.id });
+  useEffect(() => {
+    const previous = audioScope.current;
+    if (
+      previous.accountId !== account?.id ||
+      !(previous.articleId === 'new' && doc.saved?.id === doc.routeId)
+    )
+      clearAudio();
+    audioScope.current = { articleId: doc.routeId, accountId: account?.id };
+    setIntent(null);
+  }, [doc.routeId, account?.id]);
   const refreshRules = async () => {
     await ruleQuery.refetch({ throwOnError: true });
   };
@@ -138,7 +162,6 @@ export function App({ services }: { services: Services }) {
   useLayoutEffect(() => {
     if (account) {
       if (previousOwner.current && previousOwner.current !== account.id) {
-        setArticle({ title: '新文章', text: '' });
         clearAudio();
         setIntent(null);
         setDeleting(null);
@@ -181,8 +204,8 @@ export function App({ services }: { services: Services }) {
     setIntent(null);
     void client.invalidateQueries({ queryKey: ['rules', owner.current] });
   };
-  const page: Page = path in pages ? (path as Page) : 'workbench';
-  if (!account && path in pages) returnPage.current = page;
+  const page: Page = doc.active ? 'workbench' : path in pages ? (path as Page) : 'articles';
+  if (!account && (path in pages || doc.active)) returnPage.current = path;
   useEffect(() => {
     document.title = `${account ? pages[page] : path === 'register' ? '创建账户' : '登录'} · YOMI`;
   }, [account, page, path]);
@@ -190,13 +213,16 @@ export function App({ services }: { services: Services }) {
     JSON.stringify([article.text, voice, speed, account?.id, version]);
   async function loggedIn(u: Account) {
     if (previousOwner.current && previousOwner.current !== u.id) {
-      setArticle({ title: '新文章', text: '' });
       clearAudio();
+      returnPage.current = 'articles';
+      lastArticlePage.current = 'articles';
     }
     previousOwner.current = u.id;
     owner.current = u.id;
     client.removeQueries({ queryKey: ['rules'] });
     client.removeQueries({ queryKey: ['voices'] });
+    client.removeQueries({ queryKey: ['articles'] });
+    client.removeQueries({ queryKey: ['article'] });
     setAccount(u);
     setNotice('');
     navigate(returnPage.current);
@@ -208,12 +234,19 @@ export function App({ services }: { services: Services }) {
     setAccount(null);
     client.removeQueries({ queryKey: ['rules'] });
     client.removeQueries({ queryKey: ['voices'] });
-    setArticle({ title: '新文章', text: '' });
+    client.removeQueries({ queryKey: ['articles'] });
+    client.removeQueries({ queryKey: ['article'] });
+    returnPage.current = 'articles';
+    lastArticlePage.current = 'articles';
     navigate('login');
     notify('已退出登录。');
   }
   async function generate() {
     if (busyLock.current || !account) return;
+    if (doc.saving) return;
+    if (doc.dirty || !doc.saved) {
+      if (!(await doc.save())) return;
+    }
     busyLock.current = true;
     setBusy(true);
     setGenerationError('');
@@ -316,14 +349,48 @@ export function App({ services }: { services: Services }) {
           onNavigate={navigate}
           onHelp={() => setHelp(true)}
         >
-          {page === 'workbench' && (
+          {(page === 'articles' || (page === 'workbench' && !doc.active)) && (
+            <ArticlesPage
+              key={account.id}
+              accountId={account.id}
+              maxArticles={config.maxArticles}
+            />
+          )}
+          {page === 'workbench' && doc.active && !doc.ready && (
+            <section className="view">
+              <p role="status">{doc.loading ? '正在加载文章…' : ''}</p>
+              <ErrorNotice message={doc.loadError} />
+              <button className="button secondary" onClick={doc.retry}>
+                重新加载文章
+              </button>
+              <button className="text-button" onClick={() => navigate('articles')}>
+                返回我的文章
+              </button>
+            </section>
+          )}
+          {page === 'workbench' && doc.active && doc.ready && (
             <Workspace
               {...article}
+              onTitle={(title) => doc.edit({ ...article, title })}
+              isNew={doc.routeId === 'new'}
+              onSave={() => void doc.save()}
+              saving={doc.saving}
+              saveStatus={
+                doc.saving
+                  ? '正在保存…'
+                  : doc.dirty
+                    ? '有未保存修改'
+                    : doc.saved
+                      ? '已保存到我的文章'
+                      : '尚未创建'
+              }
+              saveError={doc.error}
+              onReload={doc.conflict ? doc.confirmReload : undefined}
               set={set}
               voices={voices}
               voice={voice}
               speed={speed}
-              onText={(text) => setArticle((a) => ({ ...a, text }))}
+              onText={(text) => doc.edit({ ...article, text })}
               onSelect={openReading}
               onCopy={() => {
                 navigator.clipboard
@@ -331,7 +398,7 @@ export function App({ services }: { services: Services }) {
                   .then(() => notify('原文已复制。'))
                   .catch(() => notify('复制失败，请选中正文后使用复制快捷键。'));
               }}
-              onNew={() => setNewArticle(true)}
+              onNew={() => navigate('articles/new')}
               onVoice={setVoice}
               onSpeed={setSpeed}
               voiceLoading={voiceLoading}
@@ -397,15 +464,7 @@ export function App({ services }: { services: Services }) {
           onDeleted={deleteConfirmed}
         />
       )}
-      {newArticle && account && (
-        <ArticleDialog
-          onClose={() => setNewArticle(false)}
-          onApply={(a) => {
-            setArticle(a);
-            setNewArticle(false);
-          }}
-        />
-      )}
+      {doc.dialogs}
       {help && account && <HelpDialog onClose={() => setHelp(false)} />}
       {toast && (
         <div id="toast" className="toast" role="status">

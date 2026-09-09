@@ -33,8 +33,19 @@ const readingText = z
 export const readingSchema = z.object({ word: readingText, reading: readingText });
 export const profileSchema = z.object({ displayName: displayNameSchema });
 export const articleSchema = z.object({
-  title: z.string().max(120, '标题最多 120 个字符。'),
-  text: z.string(),
+  title: z
+    .string()
+    .trim()
+    .min(1, '请填写文章标题。')
+    .refine((v) => [...v].length <= 120, '标题最多 120 个字符。'),
+  text: z
+    .string()
+    .refine((v) => [...v].length <= 10000, '正文最多 10000 个字符。')
+    .refine((v) => new TextEncoder().encode(v).length <= 49152, '正文数据过大，请缩短后保存。')
+    .refine(
+      (v) => !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u.test(v),
+      '正文含有不支持的控制字符。',
+    ),
 });
 export const fieldErrors = (errors: Record<string, unknown>): string =>
   Object.values(errors)

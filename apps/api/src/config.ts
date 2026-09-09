@@ -17,6 +17,7 @@ export const configSchema = z.object({
     .transform((v) => v === "true"),
   TRUST_PROXY: z.string().default("loopback"),
   WEB_DIST: z.string().optional(),
+  MAX_ARTICLES: z.coerce.number().int().min(1).default(100),
   TTS_AZURE_SPEECH_KEY: z.string().optional(),
   TTS_AZURE_JA_VOICE_ID: z.string().optional(),
   TTS_PRODUCTION_APPROVED: z

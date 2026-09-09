@@ -1,3 +1,22 @@
+# F1 文章管理验收记录（2026-09-10）
+
+本节为本轮结果；下方早期记录保留作历史。API固定1.1.0，指纹16c6c783c77bd55b18cd26de64e261186c971a699ba37bff73b5bd3c075ffa31。前端仅接入五个文章CRUD操作，未接入F2持久音频。
+
+- `npm run test:articles`：22组通过，`articles-artifacts/results.json`，errors=[]。覆盖空列表/搜索/分页/创建与容量、保存失败及409恢复、保存中再编辑、保存中再编辑停止合成、新文章一次点击先保存再临时生成、按钮/链接/浏览器前进返回阻塞、真实beforeunload取消、重新打开取新服务端内容、401同账户草稿恢复、跨文章迟到读取与换账户隔离、删除503/409及末页回退、390/320布局。
+- `npm run test:articles:integration`：10组真实浏览器HTTP/PostgreSQL通过，`articles-integration-artifacts/results.json`，errors=[]。没有网络拦截，验证空草稿、原字符/组合字符/emoji和刷新恢复、120码点标题、真实409、外部修改重开、真实会话失效和重登恢复、搜索、删除404、退出。成功运行创建的文章已清理，随机测试账户留在隔离数据库；调试失败的两次运行可能留下各一篇隔离测试文章。脚本不记录账号密码。
+- `npm run test:contract`：适配文章路由后的既有React回归22组通过，`react-artifacts/results.json`，errors=[]。保留登录/密码、规则CRUD/全量投影/分页、IME/多行、草稿读法试听不保存、MP3播放/暂停/停止/下载、过期/失败与无自动重试、账户隔离及布局焦点等检查。
+- `npm run test:integration`：既有真实账号/个人读法联调13组通过，`integration-artifacts/full-results.json`，errors=[]；测试生成的文章和规则已清理。
+- `npm run test:password`：实际4181页面登录及注册7位拒绝/8位放行通过。
+- `npm run build`（含typecheck）、`npm run check:api`通过。Vite提示主bundle约523kB（gzip约165kB）的体积警告；构建成功，未为此改变功能阶段。
+
+交互实现使用React Router createHashRouter/useBlocker/useBeforeUnload、TanStack Query、现有Radix弹窗与Zod验证。正文顶部仅展示真实保存状态，移除原“未保存的文章”固定标签，标题输入与正文展示ID互不重复。401读请求会丢弃旧CSRF缓存，以便同账户重登取得匿名会话token；不自动重放写请求。
+
+已查看截图：`articles-integration-artifacts/articles-desktop.png`（真实搜索列表）、`articles-integration-artifacts/article-mobile.png`（真实390px编辑）、`articles-artifacts/unsaved-navigation.png`（离开保护）、`articles-artifacts/save-conflict.png`（草稿冲突）。列表与编辑无横向溢出，保存状态与临时音频说明清楚。
+
+运行服务保留：前端4181，后端隔离API3000（后端维护）。音色供应商未配置；临时MP3音调仅为自动化播放器验证，不代表日文供应商语音或部署验收。F2音频持久恢复、唯一成功音频替换及相应并发验证等待产品下一阶段放行。本轮前端未执行Git操作。
+
+---
+
 # React + OpenAPI 前端验收
 
 日期：2026-09-06。当前前端为React正式HTTP入口，旧原生模板证据已归档到`../reference/qa`，不混为本阶段结果。

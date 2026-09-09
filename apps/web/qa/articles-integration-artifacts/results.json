@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-09T15:14:02.722Z",
+  "origin": "http://127.0.0.1:4181/",
+  "checks": [
+    "真实未登录文章路由保护",
+    "真实注册登录与个人空列表",
+    "真实PG空白创建/正文保存/组合字符与刷新恢复",
+    "120 Unicode码点标题且标题不改正文版本",
+    "真实条件PATCH409与保留草稿/确认重载",
+    "真实外部修改后重开不采用旧缓存",
+    "真实会话失效后同账户恢复文章ID和草稿",
+    "真实标题搜索/移动端/无供应商禁用生成",
+    "真实确认删除/服务器404/列表更新",
+    "真实退出会话失效"
+  ],
+  "errors": [],
+  "note": "No HTTP interception. Isolated real API/PostgreSQL; created article removed; random account remains; no credentials recorded."
+}

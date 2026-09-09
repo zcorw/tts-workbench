@@ -44,6 +44,7 @@ import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import { VocabularyService } from "./vocabulary.js";
 import { SpeechService } from "./speech.js";
+import { ArticleService } from "./articles.js";
 import { GatewayError } from "tts-gateway";
 interface ApiRequest extends Request {
   requestId: string;
@@ -56,6 +57,7 @@ export interface State {
   csrf: ReturnType<typeof csrfSync>;
   vocabulary: VocabularyService;
   speech: SpeechService;
+  articles: ArticleService;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
   let status = 503,
@@ -123,13 +125,11 @@ export function sendError(error: unknown, req: Request, res: Response) {
     code = "INVALID_REQUEST";
   }
   if (status === 429) res.set("Retry-After", "60");
-  res
-    .status(status)
-    .json({
-      code,
-      message: code,
-      requestId: (req as ApiRequest).requestId ?? randomUUID(),
-    });
+  res.status(status).json({
+    code,
+    message: code,
+    requestId: (req as ApiRequest).requestId ?? randomUUID(),
+  });
 }
 @Catch()
 class ErrorFilter implements ExceptionFilter {
@@ -161,6 +161,7 @@ class AuthController {
       maxVocabularyEntries: 500,
       maxInputCodePoints: 10000,
       maxInputBytes: 49152,
+      maxArticles: this.state.articles.maxArticles,
     };
   }
   @Get("v1/auth/csrf") async csrf(@Req() req: Request) {
@@ -242,6 +243,40 @@ class AuthController {
       .set("X-Pronunciation-Version", String(result.internalVersion))
       .status(204)
       .end();
+  }
+  @Get("v1/articles") listArticles(
+    @Req() req: Request,
+    @Query() query: unknown,
+  ) {
+    return this.state.articles.list(requireAccount(req).id, query);
+  }
+  @Post("v1/articles") createArticle(
+    @Req() req: Request,
+    @Body() body: unknown,
+  ) {
+    return this.state.articles.create(requireAccount(req).id, body);
+  }
+  @Get("v1/articles/:id") getArticle(
+    @Req() req: Request,
+    @Param("id") id: string,
+  ) {
+    return this.state.articles.get(requireAccount(req).id, id);
+  }
+  @Patch("v1/articles/:id") updateArticle(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.state.articles.update(requireAccount(req).id, id, body);
+  }
+  @Delete("v1/articles/:id") async deleteArticle(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Query("expectedRevision") revision: unknown,
+    @Res() res: Response,
+  ) {
+    await this.state.articles.remove(requireAccount(req).id, id, revision);
+    res.status(204).end();
   }
   @Get("v1/voices") voices(@Req() req: Request) {
     return this.state.speech.voices(requireAccount(req).id);
@@ -336,7 +371,8 @@ export async function createApplication(config: Config) {
     await pool.end();
     throw e;
   }
-  const state: State = { pool, config, csrf, vocabulary, speech };
+  const articles = new ArticleService(pool, config.MAX_ARTICLES ?? 100);
+  const state: State = { pool, config, csrf, vocabulary, speech, articles };
   @Module({
     imports: [
       AccountModule.registerAsync({

@@ -10,6 +10,7 @@ const errors: Record<string, string> = {
   ALREADY_EXISTS: '该账户名称或词汇已存在，请使用其他名称或编辑已有规则。',
   REVISION_CONFLICT: '规则已在另一窗口更新。本次未保存，请关闭后重新打开规则。',
   VOCABULARY_LIMIT: '个人读法已达到数量上限。',
+  ARTICLE_LIMIT: '文章数量已达到上限，请先删除不需要的文章后重试。',
   TTS_UNAVAILABLE: '语音服务暂不可用，请稍后重试或联系维护者。',
   DEPENDENCY_UNAVAILABLE: '服务暂不可用，请稍后重试。',
   TTS_PROVIDER_ERROR: '语音生成失败，请主动重试。',
@@ -37,7 +38,7 @@ async function raw(path: string, init: RequestInit = {}, login = false): Promise
     body = await res.json();
   } catch {}
   const code = body.code || `HTTP_${res.status}`;
-  if (code === 'CSRF_INVALID') {
+  if (code === 'CSRF_INVALID' || (res.status === 401 && !login)) {
     csrf = null;
     csrfPromise = null;
   }
@@ -154,6 +155,7 @@ export const httpServices: Services = {
       registrationOpen: c.registrationEnabled,
       maxText: c.maxInputCodePoints,
       maxBytes: c.maxInputBytes,
+      maxArticles: c.maxArticles,
     };
   },
   async session() {
@@ -163,6 +165,28 @@ export const httpServices: Services = {
       if (e instanceof ServiceError && e.code === 'SESSION') return null;
       throw e;
     }
+  },
+  articles({ q, offset, limit }) {
+    return json<Schema['ArticlePage']>(
+      '/v1/articles?' + new URLSearchParams({ q, offset: String(offset), limit: String(limit) }),
+    );
+  },
+  article(id) {
+    return json<Schema['ArticleDetail']>(`/v1/articles/${encodeURIComponent(id)}`);
+  },
+  async createArticle(input) {
+    return (await mutation('/v1/articles', 'POST', input satisfies Schema['ArticleInput'])).json();
+  },
+  async updateArticle(id, input, revision) {
+    return (
+      await mutation(`/v1/articles/${encodeURIComponent(id)}`, 'PATCH', {
+        ...input,
+        expectedRevision: revision,
+      } satisfies Schema['ArticlePatch'])
+    ).json();
+  },
+  async deleteArticle(id, revision) {
+    await mutation(`/v1/articles/${encodeURIComponent(id)}?expectedRevision=${revision}`, 'DELETE');
   },
   async login(login, password) {
     const body = { login, password } satisfies Schema['Credentials'];

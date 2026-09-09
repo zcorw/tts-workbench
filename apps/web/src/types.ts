@@ -22,6 +22,7 @@ export interface PublicConfig {
   registrationOpen: boolean;
   maxText: number;
   maxBytes: number;
+  maxArticles: number;
 }
 export interface SpeechInput {
   text: string;
@@ -35,6 +36,11 @@ export interface MediaResult {
   requestId?: string;
 }
 export interface Services {
+  articles(query: { q: string; offset: number; limit: number }): Promise<ArticlePage>;
+  article(id: string): Promise<Article>;
+  createArticle(input: ArticleInput): Promise<Article>;
+  updateArticle(id: string, input: ArticleInput, revision: number): Promise<Article>;
+  deleteArticle(id: string, revision: number): Promise<void>;
   configuration(): Promise<PublicConfig>;
   session(): Promise<Account | null>;
   login(login: string, password: string): Promise<Account>;
@@ -71,3 +77,8 @@ export const messageOf = (error: unknown) =>
     : error instanceof Error
       ? error.message
       : '操作未能完成，请重试。';
+import type { components } from './api/schema';
+export type Article = components['schemas']['ArticleDetail'];
+export type ArticleSummary = components['schemas']['ArticleSummary'];
+export type ArticleInput = components['schemas']['ArticleInput'];
+export type ArticlePage = components['schemas']['ArticlePage'];

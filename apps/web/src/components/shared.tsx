@@ -93,7 +93,7 @@ export function Modal({
 }
 export function Brand() {
   return (
-    <Link className="brand" to="/workbench" aria-label="YOMI 首页">
+    <Link className="brand" to="/articles" aria-label="YOMI 首页">
       <span className="brand-mark">よ</span>
       <span>
         YOMI<small>日文语音工作台</small>

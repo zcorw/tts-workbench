@@ -6,6 +6,13 @@ import { ErrorNotice, PageHeading } from './shared';
 export function Workspace(p: {
   text: string;
   title: string;
+  isNew: boolean;
+  onTitle: (title: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  saveStatus: string;
+  saveError: string;
+  onReload?: () => void;
   set: RuleSet;
   voice: string;
   voices: Voice[];
@@ -41,7 +48,12 @@ export function Workspace(p: {
         kicker="JAPANESE SPEECH STUDIO"
         title="让日文，按你的读法发声"
         action={
-          <button id="newArticleButton" className="button secondary" onClick={p.onNew}>
+          <button
+            id="newArticleButton"
+            className="button secondary"
+            onClick={p.onNew}
+            disabled={p.isNew}
+          >
             ＋ 新文章
           </button>
         }
@@ -56,6 +68,31 @@ export function Workspace(p: {
       )}
       <div className="workspace-grid">
         <div className="writing-column">
+          <section className="article-save-panel" aria-label="文章保存">
+            <label className="field-label" htmlFor="articleTitle">
+              文章标题
+            </label>
+            <input id="articleTitle" value={p.title} onChange={(e) => p.onTitle(e.target.value)} />
+            <div className="article-save-actions">
+              <span id="articleSaveStatus" role="status">
+                {p.saveStatus}
+              </span>
+              <button
+                id="saveArticle"
+                className="button primary"
+                disabled={p.saving}
+                onClick={p.onSave}
+              >
+                保存文章
+              </button>
+            </div>
+            <ErrorNotice message={p.saveError} />
+            {p.onReload && (
+              <button className="button secondary" onClick={p.onReload}>
+                重新载入最新版本
+              </button>
+            )}
+          </section>
           <ArticleEditor
             text={p.text}
             title={p.title}
@@ -65,6 +102,9 @@ export function Workspace(p: {
             onCopy={p.onCopy}
           />
           <AudioPlayer result={p.result} stale={p.stale} busy={p.busy} error={p.error} />
+          <p className="small-note">
+            当前音频仅在本页面临时提供。离开文章或刷新后需重新生成，请及时下载。
+          </p>
         </div>
         <aside className="right-rail">
           <section className="settings-card">
@@ -132,6 +172,7 @@ export function Workspace(p: {
               id="generateButton"
               disabled={
                 p.busy ||
+                p.saving ||
                 !p.voice ||
                 !p.text.trim() ||
                 count > p.maxText ||

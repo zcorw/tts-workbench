@@ -207,8 +207,7 @@ export function ArticleEditor({
       <div className="editor-toolbar">
         <div>
           <span className="document-dot" />
-          <strong id="articleTitle">{title}</strong>
-          <span className="subtle-tag">未保存的文章</span>
+          <strong id="articleDisplayTitle">{title}</strong>
         </div>
         <button className="text-button" id="copyButton" onClick={onCopy}>
           复制原文 ⧉
