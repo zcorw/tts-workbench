@@ -231,6 +231,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List owned saved articles
+         * @description Authenticated account only. q is a trimmed, case-insensitive literal title substring (not SQL wildcard syntax), no body search. Stable updatedAt DESC then id DESC. total is filtered count. Count/items/rule version are read in one consistent DB snapshot; separate offset pages may move under concurrent edits, refetch after mutations. No audio bytes or full body in list. No automatic persistence of unsaved browser drafts.
+         */
+        get: operations["listArticles"];
+        put?: never;
+        /**
+         * Create an owned article draft
+         * @description Owner comes only from authenticated session. Atomically enforce maxArticles with concurrent creations (deployment default 100). Initial revision/contentRevision=1, audio=null, audioStale=false. Titles need not be unique. Empty original text allowed; no audio generation. Only latest saved title/text is retained.
+         */
+        post: operations["createArticle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/articles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read owned article and last audio metadata
+         * @description One consistent snapshot of article, last successful audio metadata and current personal rule version. Body is exact latest saved text. Audio bytes are fetched separately by audioId; no text/audio history.
+         */
+        get: operations["getArticle"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete owned article and its last audio conditionally
+         * @description Required expectedRevision query parameter, no DELETE body. Atomic owner/revision check, cascade audio deletion and release article slot. Subsequent reads return404; repeated deletion returns404. In-flight synthesis must recheck existence and cannot recreate deleted rows or their audio. No deletion of personal vocabulary rules.
+         */
+        delete: operations["deleteArticle"];
+        options?: never;
+        head?: never;
+        /**
+         * Save latest title and original text conditionally
+         * @description Both title and text required. Lock/check owner and expectedRevision atomically. Actual title/text changes increment revision and updatedAt once; only changed text increments contentRevision. No-op retains all versions. Preserve last successful audio, which becomes stale after changed text; a title-only edit does not stale it. No history, provider call or automatic regeneration. 409 must not silently overwrite another editor.
+         */
+        patch: operations["updateArticle"];
+        trace?: never;
+    };
+    "/v1/articles/{id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read exact current audio bytes by audioId
+         * @description F2: authenticate owner and match both article ID and required audioId in one consistent read. Return404 NOT_FOUND for another owner, deleted/missing article, no audio or replaced audioId; missing/malformed audioId is400 INVALID_REQUEST. Read bytes/metadata from same row snapshot, so a concurrent replacement after read may finish delivering that already-selected audio consistently. Content-Type audio/mpeg, exact Content-Length, Content-Disposition with metadata filename, X-Audio-Id and X-Article-Content-Revision identify stored bytes; X-Pronunciation-Version is stored actual ruleVersion. Cache-Control no-store. No Range streaming guarantee; client loads complete response as Blob. Frontend may refetch article metadata after404 and retry GET with its new audioId at most once; never auto POST generation. Download stale audio remains allowed.
+         */
+        get: operations["getArticleAudio"];
+        put?: never;
+        /**
+         * Generate and atomically retain last successful article audio
+         * @description F2: synthesize only server-loaded saved original text, never client-supplied input/owner/dictionaryIds/SSML. Client must save first; blank saved text is400 INVALID_REQUEST. Check owner and expectedRevision before any provider call and allocate monotonic per-article generationSeq in a short transaction. Call existing Japanese Gateway outside DB transaction using one immutable personal-rule snapshot. Shared billable rate-limit pool with /v1/audio/speech and /v1/audio/preview, same CSRF/Origin/voice permissions and cancellation; never automatically retry. Buffer complete valid MP3 <=8388608 bytes before commit. Commit transaction locks existing article, rechecks active account/ownership, contentRevision and stored successful generationSeq. Deleted/not-owned returns404. Changed content returns409 ARTICLE_CONTENT_CHANGED, including changed-then-reverted text; title-only edits after admission are allowed. If newer-started generation already succeeded, discard older result with409 AUDIO_SUPERSEDED. If newer generation failed/pending, older success may commit and newer success may replace it later. Replace bytes and metadata atomically, assign fresh audioId; no prior audio row retained. Failure/cancellation/DB failure never clears previous audio; cancellation cannot undo a commit that already happened. Rule changes in flight do not rewrite the actual snapshot: commit the result with actual ruleVersion and audioStale based on current version. Return JSON metadata only after persistence. A successful commit followed by lost HTTP response is recovered through getArticle, never automatic re-synthesis. Article editing revision/updatedAt are unchanged by generation.
+         */
+        post: operations["generateArticleAudio"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -311,6 +387,11 @@ export interface components {
             maxVocabularyEntries: number;
             maxInputCodePoints: number;
             maxInputBytes: number;
+            /**
+             * @description Maximum saved articles per account. Deployment MAX_ARTICLES defaults to 100; creation and capacity checks are atomic. Deletion releases a slot.
+             * @default 100
+             */
+            maxArticles: number;
         };
         VocabularyInput: {
             /** @description NFC normalized, non-whitespace; no angle brackets or control characters. Length in Unicode code points. */
@@ -399,6 +480,155 @@ export interface components {
         };
         AccountPatch: {
             displayName: string;
+        };
+        /** @description Only the last successfully committed audio is retained. contentRevision and ruleVersion identify the saved text and immutable personal snapshot actually synthesized. An audioId identifies exactly one set of bytes; replacement removes the previous ID. No history endpoint. */
+        ArticleAudio: {
+            /** Format: uuid */
+            audioId: string;
+            contentRevision: number;
+            ruleVersion: number;
+            /** @description Public voice alias actually used; never a credential or private provider configuration. */
+            voice: string;
+            /** @default 1 */
+            speed: number;
+            /** @enum {string} */
+            language: "ja-JP";
+            /** @enum {string} */
+            format: "mp3";
+            /** @enum {string} */
+            mimeType: "audio/mpeg";
+            byteLength: number;
+            characterCount: number;
+            /** @description Safe download filename, also supplied through Content-Disposition. */
+            filename: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Owned article list projection; excludes body text and audio bytes. No owner field accepted from clients. */
+        ArticleSummary: {
+            /** Format: uuid */
+            id: string;
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Starts at 1. Increments exactly once when a successful PATCH changes trimmed title or exact text. No-op PATCH does not increment; generation does not increment. Required precondition for PATCH, DELETE and generation admission. */
+            revision: number;
+            /** @description Starts at 1, increments only when exact saved text changes. Title-only edits and generation do not change it. */
+            contentRevision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Time of last actual title/text update, initially createdAt. Generating audio does not reorder the article list.
+             */
+            updatedAt: string;
+            /** @description Current personal rule-set version at response snapshot; not the historical version used for audio. */
+            currentRuleVersion: number;
+            /** @description Only the last successfully committed audio is retained. contentRevision and ruleVersion identify the saved text and immutable personal snapshot actually synthesized. An audioId identifies exactly one set of bytes; replacement removes the previous ID. No history endpoint. */
+            audio: {
+                /** Format: uuid */
+                audioId: string;
+                contentRevision: number;
+                ruleVersion: number;
+                /** @description Public voice alias actually used; never a credential or private provider configuration. */
+                voice: string;
+                /** @default 1 */
+                speed: number;
+                /** @enum {string} */
+                language: "ja-JP";
+                /** @enum {string} */
+                format: "mp3";
+                /** @enum {string} */
+                mimeType: "audio/mpeg";
+                byteLength: number;
+                characterCount: number;
+                /** @description Safe download filename, also supplied through Content-Disposition. */
+                filename: string;
+                /** Format: date-time */
+                createdAt: string;
+            } | null;
+            /** @description False without audio. Otherwise true if audio.contentRevision differs from current contentRevision or audio.ruleVersion differs from currentRuleVersion. Client also marks stale against unsaved text and selected voice/speed. Title-only edits do not stale audio. */
+            audioStale: boolean;
+        };
+        ArticleDetail: {
+            /** Format: uuid */
+            id: string;
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Starts at 1. Increments exactly once when a successful PATCH changes trimmed title or exact text. No-op PATCH does not increment; generation does not increment. Required precondition for PATCH, DELETE and generation admission. */
+            revision: number;
+            /** @description Starts at 1, increments only when exact saved text changes. Title-only edits and generation do not change it. */
+            contentRevision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Time of last actual title/text update, initially createdAt. Generating audio does not reorder the article list.
+             */
+            updatedAt: string;
+            /** @description Current personal rule-set version at response snapshot; not the historical version used for audio. */
+            currentRuleVersion: number;
+            /** @description Only the last successfully committed audio is retained. contentRevision and ruleVersion identify the saved text and immutable personal snapshot actually synthesized. An audioId identifies exactly one set of bytes; replacement removes the previous ID. No history endpoint. */
+            audio: {
+                /** Format: uuid */
+                audioId: string;
+                contentRevision: number;
+                ruleVersion: number;
+                /** @description Public voice alias actually used; never a credential or private provider configuration. */
+                voice: string;
+                /** @default 1 */
+                speed: number;
+                /** @enum {string} */
+                language: "ja-JP";
+                /** @enum {string} */
+                format: "mp3";
+                /** @enum {string} */
+                mimeType: "audio/mpeg";
+                byteLength: number;
+                characterCount: number;
+                /** @description Safe download filename, also supplied through Content-Disposition. */
+                filename: string;
+                /** Format: date-time */
+                createdAt: string;
+            } | null;
+            /** @description False without audio. Otherwise true if audio.contentRevision differs from current contentRevision or audio.ruleVersion differs from currentRuleVersion. Client also marks stale against unsaved text and selected voice/speed. Title-only edits do not stale audio. */
+            audioStale: boolean;
+            /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
+            text: string;
+        };
+        ArticleInput: {
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
+            text: string;
+        };
+        ArticlePatch: {
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
+            text: string;
+            expectedRevision: number;
+        };
+        ArticlePage: {
+            items: components["schemas"]["ArticleSummary"][];
+            total: number;
+            offset: number;
+            limit: number;
+        };
+        ArticleSynthesis: {
+            expectedRevision: number;
+            voice: string;
+            /** @default 1 */
+            speed: number;
+        };
+        /** @description Metadata snapshot from the successful audio commit, not a promise that a concurrent later request cannot replace it. Fetch bytes using this audioId. No binary or base64 in this JSON response. */
+        ArticleAudioResult: {
+            /** Format: uuid */
+            articleId: string;
+            revision: number;
+            contentRevision: number;
+            currentRuleVersion: number;
+            audio: components["schemas"]["ArticleAudio"];
+            audioStale: boolean;
         };
     };
     responses: never;
@@ -1823,6 +2053,795 @@ export interface operations {
             };
             /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
             403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE */
+            413: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE */
+            415: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description TTS_PROVIDER_ERROR */
+            502: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description TTS_TIMEOUT */
+            504: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listArticles: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticlePage"];
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetail"];
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ARTICLE_LIMIT: per-account maxArticles reached; no article created. */
+            409: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE */
+            413: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE */
+            415: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetail"];
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description NOT_FOUND: absent/not owned article, absent audio or audioId no longer matches. Same response for ownership failure; no historical audio access. */
+            404: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteArticle: {
+        parameters: {
+            query: {
+                expectedRevision: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Article and last audio deleted atomically; account capacity released. */
+            204: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description NOT_FOUND: absent/not owned article, absent audio or audioId no longer matches. Same response for ownership failure; no historical audio access. */
+            404: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description REVISION_CONFLICT: expectedRevision differs from current article revision; no modification or billable synthesis started. Refetch metadata and let user resolve; keep unsaved client text. */
+            409: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE */
+            413: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE */
+            415: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticlePatch"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetail"];
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description NOT_FOUND: absent/not owned article, absent audio or audioId no longer matches. Same response for ownership failure; no historical audio access. */
+            404: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description REVISION_CONFLICT: expectedRevision differs from current article revision; no modification or billable synthesis started. Refetch metadata and let user resolve; keep unsaved client text. */
+            409: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE */
+            413: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE */
+            415: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArticleAudio: {
+        parameters: {
+            query: {
+                audioId: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete saved MP3 corresponding exactly to required audioId. Max8388608 bytes, no history, no provider call. */
+            200: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Content-Length"?: number;
+                    "Content-Disposition"?: string;
+                    /** @description Version of the personal snapshot actually used for this response, never a later DB lookup. */
+                    "X-Pronunciation-Version"?: number;
+                    "X-Audio-Id"?: string;
+                    "X-Article-Content-Revision"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": string;
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description NOT_FOUND: absent/not owned article, absent audio or audioId no longer matches. Same response for ownership failure; no historical audio access. */
+            404: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description RATE_LIMITED; retry after indicated seconds */
+            429: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE / TTS_UNAVAILABLE */
+            503: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    generateArticleAudio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleSynthesis"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAudioResult"];
+                };
+            };
+            /** @description INVALID_REQUEST: invalid fields, JSON or unknown properties */
+            400: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description UNAUTHENTICATED: absent, invalid, expired or revoked session / invalid credentials */
+            401: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description FORBIDDEN / CSRF_INVALID / REGISTRATION_DISABLED */
+            403: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description NOT_FOUND: absent/not owned article, absent audio or audioId no longer matches. Same response for ownership failure; no historical audio access. */
+            404: {
+                headers: {
+                    "X-Request-Id"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description REVISION_CONFLICT at admission; ARTICLE_CONTENT_CHANGED if contentRevision changed before commit; AUDIO_SUPERSEDED if a later-started generation already committed successfully. Discarded audio is not returned as a saved success. */
+            409: {
                 headers: {
                     "X-Request-Id"?: string;
                     "Cache-Control"?: "no-store";

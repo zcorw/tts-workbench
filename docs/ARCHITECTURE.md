@@ -234,3 +234,19 @@ T030完成音色/配置/路由/adapter/默认语言能力；T031完成快照与�
 部署验收另须检查实际发布端口：整个栈只有一个127.0.0.1宿主映射，其他服务无host映射，无IPv4/IPv6公网直连入口；宿主Nginx能访问页面/API并正确代理真实音频响应，外部无法绕过Nginx直连发布端口。真实音频验证使用受控夹具或T024已授权结果，不能让readiness自动调用付费供应商。
 
 待实施参数只有VPS地址/系统与CPU架构、SSH部署身份和主机指纹、宿主入口端口、域名/TLS、镜像仓库、触发策略和部署目录等；Docker Compose、GitHub Actions、远程VPS及单loopback端口加宿主Nginx入口不再作为平台待选项。日文真实音色验收仍由T024在具备授权凭据时完成，部署健康检查不自动触发付费TTS。
+
+## 13. 文章管理与最后成功音频（API 1.1.0规划，尚未实现）
+
+本节为2026-09-09三方定稿的新方向，覆盖旧章节“正文/音频不持久化”的产品范围；P0仅契约与规划，现有运行源码仍未提供文章接口。仅保留每篇最新已保存title/text和一份最后成功音频，不提供正文或音频历史。账户、密码8–128、ja-JP和同词唯一默认规则保持。详见[文章方案](ARTICLE_MANAGEMENT.md)与[唯一契约](openapi.yaml)。
+
+建议wb_articles保存account_id、title、text、revision、content_revision、generation_seq及时间；wb_article_audio以article_id为唯一主键/外键ON DELETE CASCADE，保存<=8388608字节的bytea及audioId、contentRevision、实际ruleVersion、voice/speed、格式、字节数/字符数、文件名、生成时间和成功generation序号。列表只读metadata，不取正文/音频字节。PG事务原子替换音频，不新增文件存储服务。备份/WAL/MVCC仍按数据库运维策略保留，不将“业务无历史”承诺为物理即时擦除。
+
+计划新增部署参数MAX_ARTICLES，正整数，默认100（团队工程默认而非用户原话），GET /v1/config返回maxArticles。账户锁或等效事务边界下原子校验容量并创建，超限409 ARTICLE_LIMIT，删除释放名额。每篇单份8MiB音频意味着默认当前音频逻辑总量最多800MiB/账户，不包括数据库开销、旧MVCC版本及备份；本轮不增加独立总配额系统。
+
+revision从1开始，只在title/text实际改变时递增并更新updatedAt；contentRevision从1开始，仅正文精确变化时递增，改标题不使音频过期。title trim后1–120码点；正文原样0–10000码点且<=49152UTF8字节，沿用控制字符限制，空白草稿可存不可合成。PATCH/DELETE以及生成准入使用expectedRevision，409保留前端输入；无变化保存不递增。
+
+合成只读取已保存正文。准入短事务校验账户/版本并分配generationSeq，网络调用在事务外复用现有SpeechService/不可变规则快照。完成时短事务锁文章，复核仍存在/所属账户有效、contentRevision未变，并比较最后成功序号。后发已成功则先发晚到返回409 AUDIO_SUPERSEDED；后发失败/尚未成功时先发仍可成功。正文在途变动返回409 ARTICLE_CONTENT_CHANGED且不替换音频，改回原字也不能消除版本变化；仅标题变动可提交。规则在途变动允许保存实际快照结果但标过期。任何失败保留旧成功音频。删除级联并禁止在途结果重建已删文章。
+
+POST文章audio返回持久化JSON metadata；GET文章audio必须带audioId，单次一致读取校验所有权/ID并取字节，旧ID/缺失/无权统一404。已读到旧快照后并发替换允许完整交付该快照，不混配头和字节。前端404只刷新metadata并最多重取一次，不自动重合成。生成共用现有speech/preview的计费限流池、CSRF、Origin和取消处理；客户端断开不撤销已提交结果，响应丢失后GET恢复。原无持久speech/preview继续兼容单词试听。
+
+实施分期：P0规划契约提交后，F1文章CRUD垂直闭环（后端迁移/API、前端列表/新建/详情/保存/删除、冲突与离开保护）；验收后由产品commit，再授权F2最后成功音频垂直闭环（存储/恢复/播放下载/过期/并发/删除在途/限流）。后端和前端不stage/commit；不提前标完成、不改账户/Gateway、不执行远程部署。
