@@ -1,5 +1,7 @@
 # 运行、验证与部署
 
+VPS 从零部署请先阅读 [VPS 部署指南](VPS_DEPLOYMENT.md)，包含 Docker Compose 直接部署和 GitHub Actions 两条完整路径。本文保留本地运行、供应商设置及历史验证细节。
+
 当前应用为React + NestJS + PostgreSQL；账户0.1.1与Gateway0.1.1版本包已置于vendor，应用无需兄弟源码即可构建。生产仅一个应用入口同时提供React静态资源及/v1，文章列表使用/#/articles，工作区使用/#/articles/:id。无供应商配置时音色列表为空、合成503；不会以测试声音兜底。
 
 ## 本地运行
@@ -20,7 +22,7 @@ cmd 中直接执行 `rebuild.cmd`。入口会自动定位工程根目录，检�
 
 Compose 项目名默认 `tts-workbench`，可在 `.env` 或终端设置 `COMPOSE_PROJECT_NAME`。**已有数据属于另一个 Compose 项目时，必须填写原项目名及匹配的数据库凭据**；不同项目使用独立数据卷，不会自动迁移或复用旧测试项目的数据。已有数据库容器使用 `--no-recreate`，只对应用使用 `--force-recreate`；不执行 `down`、不删除卷。数据库初始化后修改 `.env` 密码不会自动修改已有数据库密码，凭据不一致时需先修正配置。
 
-此入口仅用于 Windows 本地 Compose 开发，临时覆盖 `NODE_ENV=development` 以支持本机 HTTP 和 Cookie；VPS 的生产模式及 HTTPS 要求保持，仍使用下述 Actions 发布流程。
+此入口仅用于 Windows 本地 Compose 开发，临时覆盖 `NODE_ENV=development` 以支持本机 HTTP 和 Cookie；VPS 使用生产模式和 HTTPS，按独立指南选择 Docker 直接部署或 Actions 发布。
 
 2026-09-09 实测：Windows PowerShell 5.1 语法解析、错误参数非零退出、默认缓存重建、从工程外目录调用 `rebuild.cmd --no-cache`、8081 端口覆盖及恢复8080均通过；页面和 `/health/ready` 返回200。重复重建时数据库容器 ID、卷名、数据库 system identifier 及两张迁移表记录数保持不变。新本地项目仅有一个 `127.0.0.1` 映射，db 无宿主映射；原 `tts-workbench-verify` 测试项目保持运行、未改动。
 
@@ -38,7 +40,7 @@ npm --prefix apps/web run dev
 
 打开http://127.0.0.1:4181/。API为http://127.0.0.1:3000，Vite代理/v1和/health。开发现场使用独立Docker容器tts-workbench-dev-pg，数据库仅发布127.0.0.1:55432（这是开发数据库，不属于生产Compose配置）。本地隔离.env已启用注册供联调，示例与生产默认关闭。
 
-Compose 部署后的账号开通请使用下面的独立章节。宿主机直接运行 Node 的方式只适用于明确使用宿主开发数据库的场景，不能用来初始化另一套 Compose 数据库。CLI 另支持 `disable <login>`（禁用并撤销会话）及 `cleanup`（清理过期会话）；个人规则长期保留，文章与音频不落库。
+Compose 部署后的账号开通请使用下面的独立章节。宿主机直接运行 Node 的方式只适用于明确使用宿主开发数据库的场景，不能用来初始化另一套 Compose 数据库。CLI 另支持 `disable <login>`（禁用并撤销会话）及 `cleanup`（清理过期会话）；个人规则、最新文章正文和每篇最后成功音频持久保存。
 
 ## 首次部署后的账号初始化
 
@@ -197,7 +199,7 @@ VPS：修改实际运行配置文件（默认 `/opt/tts-workbench/.env.productio
 
 1. 使用已创建的账户登录工作台，查看音色选择器；也可在同一登录浏览器打开同源 `/v1/voices`，应看到 `id=ja-jp-primary`、`language=ja-JP`、`provider=azure-speech`。未登录会返回401。该目录来自本地配置，不会向 Azure 查询或验证 Key/voice。
 2. `/health/ready` 是非计费健康检查。即使返回200或目录有音色，也不证明 Key 有效、音色在区域可用或网络可达；无 TTS 配置时健康仍可正常。
-3. 用户准备好承担云端合成费用后，在工作台输入最短日文，例如 `こんにちは。`，选择“日本語”，语速1，点击合成一次。页面负责登录 Cookie、Origin 和 CSRF，检查 `/v1/audio/speech` 返回200及可播放的 MP3，并实际听取结果。随后可用一个词的指定读法验证 alias；这也是一次真实合成，不自动重试。
+3. 用户准备好承担云端合成费用后，在工作台输入最短日文，例如 `こんにちは。`，选择“日本語”，语速1，点击合成一次。页面负责登录 Cookie、Origin 和 CSRF，并先保存文章；`POST /v1/articles/{id}/audio` 成功返回JSON元数据后，以 `GET /v1/articles/{id}/audio?audioId=...` 读取MP3，实际听取结果。随后可用一个词的指定读法验证 alias；这也是一次真实合成，不自动重试。单词试听仍使用临时音频接口。
 4. 若启动失败，先核对变量是否成对、是否已重建、审批引用是否与开关一致；若合成失败，核对区域/Key/voice/配额和网络，查看已脱敏的错误类别，勿粘贴请求认证头或完整环境。只有真实试听通过后才记录云端可听验收，不能用测试音调替代。
 
 ### AWS Polly：凭据与最小权限准备（当前未接入工作台）
@@ -251,6 +253,8 @@ Gateway独立目录：build、typecheck、lint、224项单测、16项HTTP回归�
 
 ## VPS准备与Actions发布
 
+完整可执行步骤已集中到 [VPS部署指南](VPS_DEPLOYMENT.md)，下文为脚本行为摘要。
+
 VPS安装Docker Engine/Compose v2、宿主Nginx，准备域名/TLS。初始支持linux/amd64；其他架构需按VPS构建目标验证。将deploy/runtime.env.example复制到VPS部署目录（默认/opt/tts-workbench）的.env.production，权限600，填入密码及秘密。DATABASE_URL主机为Compose服务名db，密码需URL编码。VPS预先用只读镜像凭据登录对应GHCR私有镜像。
 
 GitHub配置production环境：Secrets为VPS_HOST、VPS_USER、VPS_SSH_KEY、VPS_KNOWN_HOSTS（预先可信渠道核实主机公钥，不在流程中盲目ssh-keyscan）；变量DEPLOY_DIR可覆盖默认。环境限制可部署分支及所需审核由仓库管理者设置。workflow_dispatch手动启动工作流，检查契约/真实PG测试/前端构建后，以commit标签推镜像、取得digest，经校验SSH部署；生产并发串行。这里只交付配置，未连接真实VPS、未运行GitHub远程工作流。
@@ -271,7 +275,7 @@ deploy/scripts/backup.sh使用pg_dump自定义格式，输出权限受umask077�
 
 恢复先导入独立数据库并核查账户数、规则内容/版本，再在维护窗口切换DATABASE_URL。示意：`createdb -U <owner> restore_check`，`pg_restore -U <owner> -d restore_check --no-owner <backup.dump>`。不要对当前库自动drop或用Compose down -v。已在隔离Compose库中实际备份并恢复账户及“日本→にほん”规则，验证数据与迁移表存在；健康失败恢复后原数据库规则保留。
 
-## 文章与音频持久化实施计划（尚未上线）
+## 文章与音频持久化（已实现，待生产部署）
 
 2026-09-09用户新增文章列表增删改查，并要求每篇只保存最新内容和最后成功生成音频。API1.1.0契约已规划24操作；P0契约已完成，F1后端CRUD及迁移已实现并通过隔离真实PG/HTTP测试；前端完整验收和产品统一review已通过，F1已提交2dd6d47，F2音频持久化已实现，前后端及产品统一验收均通过。以本节和[文章方案](ARTICLE_MANAGEMENT.md)取代前文“文章与音频不落库”的未来范围，旧文字描述原版本行为。
 
@@ -279,7 +283,7 @@ F1已提供文章CRUD与保存/并发/离开保护并通过验收；F2后端已�
 
 F1已新增MAX_ARTICLES部署配置，正整数、默认100篇/账户，GET config暴露maxArticles；创建原子检查容量，超额409 ARTICLE_LIMIT，删除释放名额。不另设总配额系统。单份音频最多8MiB，默认账户当前音频理论最多800MiB，备份/WAL/MVCC和数据库开销不计在内。此变量已由运行源码读取，示例环境文件已列出；更新运行环境后按前述env_file重建方法生效。降低限额不会删除已有文章，仅在数量达到或超过限额时拒绝新建。
 
-最新正文和唯一音频位于现有PostgreSQL持久卷，部署不增加端口或文件服务。备份恢复范围包含文章及音频表；替换/删除音频是业务行级操作，不等于立即清除备份里的旧字节。迁移、重启持久性、容量并发、跨账户访问、音频替换失败恢复和在途删除均列入[TODO](../TODO.md)，目前不标验收通过。
+最新正文和唯一音频位于现有PostgreSQL持久卷，部署不增加端口或文件服务。备份恢复范围包含文章及音频表；替换/删除音频是业务行级操作，不等于立即清除备份里的旧字节。迁移、重启持久性、容量并发、跨账户访问、音频替换失败恢复和在途删除均已通过功能验收，见[TODO](../TODO.md)及下方F2记录；目标VPS仍需按部署指南执行现场验收。
 
 F1运行记录（2026-09-10）：新增迁移1788969600000-articles.cjs，文章正文随现有PostgreSQL卷持久化，现有全库pg_dump备份路径包含该表。迁移重入及应用关闭重建后的正文、版本和账户隔离已实测；文章备份恢复演练与F2音频恢复验收仍待综合验证。Compose与GitHub Actions远程VPS部署要求保持，单127.0.0.1宿主入口不变。本次仅启动隔离测试服务，未更新现有8080实例或执行远程部署。
 
