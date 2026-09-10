@@ -316,17 +316,17 @@ $revision
   compose() {
     docker compose --project-name tts-workbench \
       --env-file "$root/.env.production" --env-file "$release/release.env" \
-      -f "$release/compose.yaml" "$@"
+      -f "$release/compose.yaml" "$@" < /dev/null
   }
   compose config --quiet
   previous=''
   if test -L "$root/current"; then previous=$(readlink -f "$root/current"); fi
   compose up -d --wait --wait-timeout 90 db
   backup="$root/backups/before-$revision-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  compose exec -T db sh -c \
+  compose exec -T --interactive=false db sh -c \
     'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup"
   test -s "$backup"
-  compose run --rm --no-deps --pull never app node apps/api/dist/operations.js migrate
+  compose run --rm -T --interactive=false --no-deps --pull never app node apps/api/dist/operations.js migrate
   if compose up -d --no-deps --pull never --wait --wait-timeout 90 app; then
     ln -sfn "$release" "$root/current"
     compose ps
@@ -448,17 +448,65 @@ vps.example.com ssh-ed25519 AAAA...实际主机公钥...
 5. 在 VPS 执行 `deploy.sh`：获取发布锁、拉取镜像、启动数据库、备份、迁移、启动 app 并等待最多90秒健康检查。
 6. 成功后让 `current` 指向该 release；app 健康失败时尝试恢复此前成功 release 的应用。
 
-VPS 不需要 Node.js、npm 或应用源码。runner 的测试数据库临时映射5432是 CI 服务配置，不是 VPS 生产 Compose 新增了数据库公网端口。
+VPS 不需要 Node.js、npm 或应用源码。**app 镜像在 GitHub runner 构建，VPS 拉取并启动镜像，因此 VPS 不会出现 app 的本地构建过程，但成功后必须有运行中的 app 容器。** runner 的测试数据库临时映射5432是 CI 服务配置，不是 VPS 生产 Compose 新增了数据库公网端口。
+
+`Remote Compose deployment` 日志应依次包含 `Backing up database`、`Running database migrations`、`Starting app and waiting for readiness`，最后出现 `Deployed ghcr.io/...@sha256:...`。最后一行只有在 app 就绪且 `current` 切换后才会输出；不能只凭工作流绿色判断应用已经启动。
 
 发布成功后，在 VPS 检查：
 
 ~~~bash
+docker ps -a --filter label=com.docker.compose.project=tts-workbench \
+  --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
 readlink -f /opt/tts-workbench/current
 cat /opt/tts-workbench/current/release.env
 curl --fail --silent --show-error http://127.0.0.1:8080/health/ready
 ~~~
 
 `release.env` 只含镜像引用和配置路径，可以读取；不要改成输出生产 env 文件。完成第 6、7 节后才算用户可登录使用。后续发布新提交时再次手动 Run workflow；当前配置不会因普通 push 自动发布。
+
+### 5.5 工作流成功，但只有 db 容器
+
+旧版部署脚本存在标准输入被提前读走的问题：工作流通过 `ssh ... bash -s < deploy/scripts/deploy.sh` 传入脚本，而 `docker compose exec -T` 只关闭 TTY，仍默认连接标准输入。备份进程可能读走后续脚本文本，使远程 Bash 在备份后直接到达输入末尾，以退出码0结束；迁移、启动 app 和切换 `current` 均未执行。一次性迁移的 `compose run` 也有同类风险。[Docker exec 说明](https://docs.docker.com/reference/cli/docker/compose/exec/)、[Docker run 说明](https://docs.docker.com/reference/cli/docker/compose/run/)
+
+修复后的 `deploy.sh` 将所有 Compose 调用的输入重定向到 `/dev/null`，并为备份和迁移显式设置 `-T --interactive=false`。CI 会模拟命令读取输入，检查通过标准输入和脚本文件执行时均完成迁移、app 启动和 current 切换；拉取、备份、迁移、就绪失败必须返回非零状态。
+
+先将修复提交推送到准备发布的分支，再用 **Run workflow** 发起该分支的新运行。直接重跑旧运行仍使用旧提交，不能取得脚本修复。更新后按5.4节检查最终 `Deployed ...`、app容器和就绪接口。[GitHub 重跑说明](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+
+如果需要立即恢复已拉取的版本，可在 VPS 上以原部署用户执行以下代码块。把 `revision` 替换成该次 Actions 的完整40位提交SHA，部署目录不同则修改 `root`。命令直接使用该 release 的配置，不依赖尚未创建的 `current`。它会加锁、新建带时间戳的数据库备份、执行迁移并启动app；任何一步失败都停止，只有就绪后才切换 `current`。
+
+~~~bash
+bash <<'BASH'
+set -euo pipefail
+umask 077
+root=/opt/tts-workbench
+revision='替换为该次Actions的完整40位Git提交SHA'
+[[ "$root" =~ ^/[A-Za-z0-9/_-]+$ && "$root" != / && "$revision" =~ ^[a-f0-9]{40}$ ]]
+release="$root/releases/$revision"
+test -f "$root/.env.production"
+test -f "$release/compose.yaml"
+test -f "$release/release.env"
+exec 9>"$root/deploy.lock"
+flock -n 9 || { echo 'Another deployment is running'; exit 1; }
+compose() {
+  docker compose --project-name tts-workbench \
+    --env-file "$root/.env.production" --env-file "$release/release.env" \
+    -f "$release/compose.yaml" "$@" < /dev/null
+}
+compose config --quiet
+compose up -d --wait db
+mkdir -p "$root/backups"
+backup=$(mktemp "$root/backups/recovery-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX.dump")
+compose exec -T --interactive=false db sh -c \
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup"
+compose run --rm -T --interactive=false --no-deps app node apps/api/dist/operations.js migrate
+compose up -d --wait --wait-timeout 90 app
+ln -sfn "$release" "$root/current"
+compose ps -a
+printf 'Recovered %s; backup: %s\n' "$revision" "$backup"
+BASH
+~~~
+
+如果 app 已存在但退出或不健康，先检查 `docker ps -a` 和该容器的日志；这与备份后脚本提前结束是不同故障，不能仅凭“只看到 db”判断。上面的恢复命令失败时不会自动回退应用；保留其错误输出，再按第8节处理。
 
 ## 6. 首次发布后：核对代理信任
 
@@ -681,6 +729,7 @@ docker system df
 |---|---|
 | GitHub 没有 Run workflow | workflow是否已进入默认分支、Actions是否启用、是否有运行权限。 |
 | Actions 等待不动 | production环境审批/分支限制，或已有发布在同一并发组运行。 |
+| Actions绿色但只有db | 核对远程步骤末尾是否有`Deployed ...`，查看`docker ps -a`；旧脚本标准输入问题及恢复方法见5.5节。 |
 | SSH Permission denied | 用户公钥、Secret私钥、文件权限、是否使用22端口及正确用户。 |
 | Host key verification failed | 从可信控制台重新核对主机公钥；不要关闭 StrictHostKeyChecking。 |
 | GHCR denied / unauthorized | VPS_USER本人是否docker login、PAT是否有read:packages和包访问权、组织SSO是否授权。 |
@@ -710,4 +759,4 @@ docker system df
 
 本指南交付范围为部署文档和命令核对。目标 VPS 的 Docker安装、DNS、TLS、SSH、GHCR访问、外部连通性和真实日文语音仍需由部署者按本文执行并验证；没有将本地测试结果表述成已完成远程部署。
 
-本次文档校验：22个Bash代码块语法通过；本文及关联入口的38个本地文件链接存在；使用占位配置解析两份env文件的Compose命令通过，核对生产模式、容器数据库URL及唯一loopback端口；现有部署结构检查和版本包完整性检查通过。未执行文档中的账号创建、镜像构建发布或数据库恢复命令。
+本次文档校验：23个Bash代码块语法通过；本文及关联入口的38个本地文件链接存在；使用占位配置解析两份env文件的Compose命令通过，核对生产模式、容器数据库URL及唯一loopback端口；现有部署结构检查和版本包完整性检查通过。另在隔离的真实PostgreSQL容器中复现旧命令“备份后提前结束且退出码0”，验证关闭标准输入后继续执行；部署脚本的12项模拟回归覆盖标准输入/文件执行以及成功、拉取失败、备份失败、迁移失败、首次就绪失败和恢复旧应用。未连接真实VPS，未执行文档中的账号创建、镜像构建发布或数据库恢复命令。

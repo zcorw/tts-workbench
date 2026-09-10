@@ -35,6 +35,7 @@ jobs:
           npm run contract:validate
           node scripts/verify-packages.mjs
           node scripts/verify-deployment.mjs
+          bash scripts/test-deploy.sh
           npm --prefix apps/api ci
           npm --prefix apps/api test
           npm --prefix apps/web ci
