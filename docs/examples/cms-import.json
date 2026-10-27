@@ -1,0 +1,23 @@
+{
+  "source": "japanese-reading-notes",
+  "items": [
+    {
+      "externalId": "spring-walk-001",
+      "title": "春の散歩",
+      "text": "今日は近くの公園を散歩しました。\n桜の花がとてもきれいでした。",
+      "slug": "spring-walk",
+      "summary": "公園で見つけた春の景色。",
+      "categoryId": null,
+      "tagIds": []
+    },
+    {
+      "externalId": "morning-coffee-002",
+      "title": "朝のコーヒー",
+      "text": "朝、窓を開けてコーヒーを飲みます。\n静かな時間を大切にしています。",
+      "slug": "morning-coffee",
+      "summary": "いつもの朝についての短い文章。",
+      "categoryId": null,
+      "tagIds": []
+    }
+  ]
+}

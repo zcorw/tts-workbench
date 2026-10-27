@@ -43,6 +43,18 @@ const errors: Record<string, string> = {
   REVISION_CONFLICT: '规则已在另一窗口更新。本次未保存，请关闭后重新打开规则。',
   VOCABULARY_LIMIT: '个人读法已达到数量上限。',
   ARTICLE_LIMIT: '文章数量已达到上限，请先删除不需要的文章后重试。',
+  CMS_CONFLICT: '链接标识或分类名称已被使用，请调整后重试。',
+  CMS_REFERENCE_CONFLICT: '栏目或标签已变化，请刷新分类并确认。',
+  TAXONOMY_IN_USE: '此栏目或标签仍被草稿使用，请先调整归属。',
+  AUDIO_STALE: '音频已变化或不匹配当前内容，请确认后重新发布。',
+  IMPORT_CONFLICT: '此条内容已在预览后变化，请重新预览。',
+  IMPORT_DUPLICATE_EXTERNAL_ID: '本次导入含重复外部 ID，请修正后重试。',
+  CMS_REVISION_CONFLICT: 'CMS 信息已被另一窗口修改。你的输入仍保留，请比较最新版本。',
+  RELEASE_LIMIT: '发布历史已达到上限，请先删除不需要的非当前版本。',
+  RELEASE_IS_CURRENT: '当前发布版本不能直接删除，请先撤回。',
+  CMS_REFERENCE_IN_USE: '此栏目或标签仍被草稿使用，请先调整归属。',
+  SLUG_CONFLICT: '链接标识已被使用，请换一个标识。',
+  AUDIO_NOT_CURRENT: '音频不再匹配当前文章，请检查最新状态。',
   ARTICLE_CONTENT_CHANGED: '正文已在生成期间保存了新内容。旧音频仍保留，请确认最新正文后重新生成。',
   AUDIO_SUPERSEDED: '另一项生成已完成。请重新载入已保存音频。',
   TTS_UNAVAILABLE: '语音服务暂不可用，请稍后重试或联系维护者。',
@@ -54,7 +66,11 @@ const errors: Record<string, string> = {
   INVALID_REQUEST: '输入或参数不符合要求，请检查后重试。',
   NOT_FOUND: '该内容已不存在，请刷新列表。',
 };
-async function raw(path: string, init: RequestInit = {}, login = false): Promise<Response> {
+export function clearCsrfCache() {
+  csrf = null;
+  csrfPromise = null;
+}
+export async function raw(path: string, init: RequestInit = {}, login = false): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -73,8 +89,7 @@ async function raw(path: string, init: RequestInit = {}, login = false): Promise
   } catch {}
   const code = body.code || `HTTP_${res.status}`;
   if (code === 'CSRF_INVALID' || (res.status === 401 && !login)) {
-    csrf = null;
-    csrfPromise = null;
+    clearCsrfCache();
   }
   const retryAfter = res.headers.get('Retry-After');
   const message =
@@ -89,7 +104,7 @@ async function raw(path: string, init: RequestInit = {}, login = false): Promise
     body.requestId || res.headers.get('X-Request-Id') || undefined,
   );
 }
-async function json<T>(path: string): Promise<T> {
+export async function json<T>(path: string): Promise<T> {
   const r = await raw(path);
   if (!r.headers.get('Content-Type')?.includes('application/json'))
     throw new ServiceError('服务返回格式不正确，请稍后重试。');
@@ -108,7 +123,7 @@ async function csrfToken(): Promise<string> {
       });
   return csrfPromise;
 }
-async function mutation(path: string, method: string, body?: unknown, login = false) {
+export async function mutation(path: string, method: string, body?: unknown, login = false) {
   const token = await csrfToken();
   return raw(
     path,
@@ -140,7 +155,7 @@ async function audio(
 ): Promise<MediaResult> {
   return decodeAudio(await mutation(path, 'POST', body));
 }
-async function decodeAudio(r: Response, expected?: ArticleAudio): Promise<MediaResult> {
+export async function decodeAudio(r: Response, expected?: ArticleAudio): Promise<MediaResult> {
   const requestId = r.headers.get('X-Request-Id') || undefined;
   const length = Number(r.headers.get('Content-Length')),
     versionHeader = r.headers.get('X-Pronunciation-Version'),

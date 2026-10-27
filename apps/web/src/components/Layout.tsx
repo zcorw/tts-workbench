@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Account } from '../types';
 import { Brand } from './shared';
+import { cmsSiteHref } from '../siteLinks';
 export const pages = {
   articles: '我的文章',
   workbench: '语音工作台',
@@ -29,7 +30,7 @@ export function Layout({
         <Brand />
         <div className="nav-caption">WORKSPACE</div>
         <nav aria-label="主导航">
-          {(Object.keys(pages) as Page[]).map((p, i) => (
+          {(Object.keys(pages) as Page[]).map((p) => (
             <button
               key={p}
               className={`nav-item ${p === page ? 'active' : ''}`}
@@ -37,7 +38,9 @@ export function Layout({
               aria-current={p === page ? 'page' : undefined}
               onClick={() => onNavigate(p)}
             >
-              <span aria-hidden="true">{['▤', '♪', 'あ', '◎'][i]}</span>
+              <span aria-hidden="true">
+                {{ articles: '▤', workbench: '♪', rules: 'あ', account: '◎' }[p]}
+              </span>
               {pages[p]}
               {p === 'rules' && (
                 <span className="nav-index" id="navRuleCount">
@@ -46,6 +49,17 @@ export function Layout({
               )}
             </button>
           ))}
+          <a
+            id="openCmsSite"
+            className="nav-item"
+            href={cmsSiteHref()}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="在新标签页打开 CMS 独立站点"
+          >
+            <span aria-hidden="true">↗</span>
+            内容站点（独立打开）
+          </a>
         </nav>
         <div className="sidebar-guide">
           <span className="tiny-label">READ IT YOUR WAY</span>

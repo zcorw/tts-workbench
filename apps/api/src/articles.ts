@@ -25,7 +25,8 @@ const text = z
       validUnicode(s) &&
       !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u.test(s),
   );
-const inputSchema = z.strictObject({ title, text });
+export const articleInputSchema = z.strictObject({ title, text });
+const inputSchema = articleInputSchema;
 const patchSchema = inputSchema.extend({
   expectedRevision: z.number().int().min(1),
 });
@@ -93,7 +94,7 @@ export class ArticleService {
     }
   }
 
-  private async detail(
+  async detailInTransaction(
     c: Pick<PoolClient, "query">,
     owner: string,
     id: string,
@@ -110,13 +111,10 @@ export class ArticleService {
 
   async get(owner: string, id: string) {
     z.uuid().parse(id);
-    return this.detail(this.pool, owner, id);
+    return this.detailInTransaction(this.pool, owner, id);
   }
 
-  private async mutate<T>(
-    owner: string,
-    action: (c: PoolClient) => Promise<T>,
-  ) {
+  async transaction<T>(owner: string, action: (c: PoolClient) => Promise<T>) {
     const c = await this.pool.connect();
     try {
       await c.query("BEGIN");
@@ -141,27 +139,31 @@ export class ArticleService {
   }
 
   async create(owner: string, input: unknown) {
-    const value = inputSchema.parse(input);
-    return this.mutate(owner, async (c) => {
-      const count = Number(
-        (
-          await c.query(
-            "SELECT count(*) FROM wb_articles WHERE account_id=$1",
-            [owner],
-          )
-        ).rows[0].count,
-      );
-      if (count >= this.maxArticles) throw new ApiError(409, "ARTICLE_LIMIT");
-      const id = randomUUID();
-      await c.query(
-        "INSERT INTO wb_articles(id,account_id,title,text) VALUES($1,$2,$3,$4)",
-        [id, owner, value.title, value.text],
-      );
-      return this.detail(c, owner, id);
-    });
+    return this.transaction(owner, (c) =>
+      this.createInTransaction(c, owner, input),
+    );
   }
 
-  private async check(
+  // Caller must use transaction(): CMS and the workbench share one authority.
+  async createInTransaction(c: PoolClient, owner: string, input: unknown) {
+    const value = inputSchema.parse(input);
+    const count = Number(
+      (
+        await c.query("SELECT count(*) FROM wb_articles WHERE account_id=$1", [
+          owner,
+        ])
+      ).rows[0].count,
+    );
+    if (count >= this.maxArticles) throw new ApiError(409, "ARTICLE_LIMIT");
+    const id = randomUUID();
+    await c.query(
+      "INSERT INTO wb_articles(id,account_id,title,text) VALUES($1,$2,$3,$4)",
+      [id, owner, value.title, value.text],
+    );
+    return this.detailInTransaction(c, owner, id);
+  }
+
+  async checkInTransaction(
     c: PoolClient,
     owner: string,
     id: string,
@@ -178,18 +180,27 @@ export class ArticleService {
   }
 
   async update(owner: string, id: string, input: unknown) {
+    return this.transaction(owner, (c) =>
+      this.updateInTransaction(c, owner, id, input),
+    );
+  }
+
+  async updateInTransaction(
+    c: PoolClient,
+    owner: string,
+    id: string,
+    input: unknown,
+  ) {
     z.uuid().parse(id);
     const value = patchSchema.parse(input);
-    return this.mutate(owner, async (c) => {
-      await this.check(c, owner, id, value.expectedRevision);
-      await c.query(
-        `UPDATE wb_articles SET title=$3,text=$4,revision=revision+1,
+    await this.checkInTransaction(c, owner, id, value.expectedRevision);
+    await c.query(
+      `UPDATE wb_articles SET title=$3,text=$4,revision=revision+1,
         content_revision=content_revision+CASE WHEN text IS DISTINCT FROM $4 THEN 1 ELSE 0 END,
         updated_at=clock_timestamp() WHERE account_id=$1 AND id=$2 AND (title IS DISTINCT FROM $3 OR text IS DISTINCT FROM $4)`,
-        [owner, id, value.title, value.text],
-      );
-      return this.detail(c, owner, id);
-    });
+      [owner, id, value.title, value.text],
+    );
+    return this.detailInTransaction(c, owner, id);
   }
 
   async generate(
@@ -216,9 +227,9 @@ export class ArticleService {
     const active = () => {
       if (signal.aborted) throw new ApiError(400, "INVALID_REQUEST");
     };
-    const saved = await this.mutate(owner, async (c) => {
+    const saved = await this.transaction(owner, async (c) => {
       active();
-      await this.check(c, owner, id, dto.expectedRevision);
+      await this.checkInTransaction(c, owner, id, dto.expectedRevision);
       const row = (
         await c.query(
           "SELECT text,content_revision FROM wb_articles WHERE id=$1",
@@ -243,7 +254,7 @@ export class ArticleService {
       requestId,
     );
     active();
-    return this.mutate(owner, async (c) => {
+    return this.transaction(owner, async (c) => {
       // The account lock may have waited after synthesis. Never commit canceled work.
       active();
       const row = (
@@ -284,7 +295,7 @@ export class ArticleService {
         ON CONFLICT(article_id) DO UPDATE SET generation_seq=EXCLUDED.generation_seq,metadata=EXCLUDED.metadata,data=EXCLUDED.data`,
         [id, saved.seq, metadata, result.audio],
       );
-      const detail = await this.detail(c, owner, id);
+      const detail = await this.detailInTransaction(c, owner, id);
       active();
       return {
         articleId: id,
@@ -314,8 +325,17 @@ export class ArticleService {
   async remove(owner: string, id: string, expectedRevision: unknown) {
     z.uuid().parse(id);
     const expected = z.coerce.number().int().min(1).parse(expectedRevision);
-    return this.mutate(owner, async (c) => {
-      await this.check(c, owner, id, expected);
+    return this.transaction(owner, async (c) => {
+      await this.checkInTransaction(c, owner, id, expected);
+      if (
+        (
+          await c.query(
+            "SELECT 1 FROM wb_cms_releases WHERE article_id=$1 LIMIT 1",
+            [id],
+          )
+        ).rowCount
+      )
+        throw new ApiError(409, "ARTICLE_HAS_RELEASES");
       await c.query("DELETE FROM wb_articles WHERE account_id=$1 AND id=$2", [
         owner,
         id,

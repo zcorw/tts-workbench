@@ -4,12 +4,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { articleSchema } from './forms';
 import { ServiceError, messageOf, type Article, type ArticleInput, type Services } from './types';
 import { ErrorNotice, Modal } from './components/shared';
+import { useRemoteCheck } from './useRemoteCheck';
 
 const blank: ArticleInput = { title: '新文章', text: '' };
 export function useArticleDocument(
   services: Services,
   accountId: string | undefined,
   failed: (e: unknown) => void,
+  externalGuard?: {
+    dirty: boolean;
+    saving: boolean;
+    save: () => Promise<boolean>;
+    discard: () => void;
+  },
 ) {
   const location = useLocation(),
     navigate = useNavigate(),
@@ -24,6 +31,10 @@ export function useArticleDocument(
   const [conflict, setConflict] = useState(false);
   const [reloadConfirm, setReloadConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [latest, setLatest] = useState<Article | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<Article | null>(null);
+  const [reviewInput, setReviewInput] = useState<ArticleInput>(blank);
+  const [reviewAccepted, setReviewAccepted] = useState(false);
   const state = useRef({
     scope: '',
     initialized: false,
@@ -59,6 +70,9 @@ export function useArticleDocument(
     setSaved(value);
     setError('');
     setConflict(false);
+    setLatest(null);
+    setReviewTarget(null);
+    setReviewAccepted(false);
     setLoadVersion((v) => v + 1);
   }, []);
   useLayoutEffect(() => {
@@ -86,6 +100,9 @@ export function useArticleDocument(
       setSaving(false);
       lock.current = false;
       setReloadConfirm(false);
+      setLatest(null);
+      setReviewTarget(null);
+      setReviewAccepted(false);
     }
     if (!state.current.initialized && (routeId === 'new' || !active)) install(null);
     else if (!state.current.initialized && query.isSuccess && !query.isFetching)
@@ -117,17 +134,20 @@ export function useArticleDocument(
       bypass.current = false;
       return false;
     }
-    return (dirty || saving) && currentLocation.key !== nextLocation.key;
+    return (
+      (dirty || saving || !!externalGuard?.dirty || !!externalGuard?.saving) &&
+      currentLocation.key !== nextLocation.key
+    );
   });
   useBeforeUnload(
     useCallback(
       (e: BeforeUnloadEvent) => {
-        if (dirty || saving) {
+        if (dirty || saving || !!externalGuard?.dirty || !!externalGuard?.saving) {
           e.preventDefault();
           e.returnValue = '';
         }
       },
-      [dirty, saving],
+      [dirty, saving, externalGuard?.dirty, externalGuard?.saving],
     ),
   );
   const edit = (input: ArticleInput) => {
@@ -143,7 +163,74 @@ export function useArticleDocument(
         : services.createArticle(input.data),
     retry: false,
   });
-  async function save() {
+  const remote = useRemoteCheck({
+    enabled: !!accountId && active && !!saved && !saving,
+    key: scope,
+    load: () => services.article(state.current.saved!.id),
+    onValue: (value) => {
+      const base = state.current.saved;
+      if (!base || base.id !== value.id || value.revision < base.revision) return;
+      if (value.currentRuleVersion > base.currentRuleVersion) {
+        void client.invalidateQueries({ queryKey: ['rules', accountId] });
+        if (value.revision === base.revision && value.audio?.audioId === base.audio?.audioId) {
+          const updated = {
+            ...base,
+            currentRuleVersion: value.currentRuleVersion,
+            audioStale: value.audioStale,
+          };
+          state.current.saved = updated;
+          setSaved(updated);
+        }
+      }
+      if (value.revision !== base.revision || value.audio?.audioId !== base.audio?.audioId) {
+        setLatest(value);
+        setConflict(true);
+        const hasDraft =
+          state.current.draft.title !== base.title || state.current.draft.text !== base.text;
+        setError(
+          value.revision !== base.revision
+            ? hasDraft
+              ? '另一界面已更新这篇文章。你的草稿仍保留，请对照差异后保存。'
+              : '另一界面已更新这篇文章，可载入最新版本。'
+            : '服务器有新的已保存音频，可载入最新版本；当前草稿仍保留。',
+        );
+      }
+    },
+    onError: (cause) => {
+      if (cause instanceof ServiceError && cause.code === 'SESSION') failed(cause);
+      if (cause instanceof ServiceError && cause.code === 'NOT_FOUND') {
+        setError('文章已在另一界面删除。当前草稿仍保留，请复制需要的内容。');
+        setConflict(true);
+      }
+    },
+  });
+  async function fetchLatest() {
+    const capturedScope = scope;
+    const id = state.current.saved?.id;
+    if (!id) return null;
+    try {
+      const value = await services.article(id);
+      if (liveScope.current !== capturedScope) return null;
+      setLatest(value);
+      return value;
+    } catch (cause) {
+      if (liveScope.current === capturedScope) {
+        setError(messageOf(cause));
+        failed(cause);
+      }
+      return null;
+    }
+  }
+  async function beginReview() {
+    if (lock.current) return;
+    const value = await fetchLatest();
+    if (!value) return;
+    setReviewTarget(value);
+    setReviewInput({ ...state.current.draft });
+    setReviewAccepted(false);
+    setReloadConfirm(true);
+  }
+  async function save(against?: Article) {
     if (lock.current || !accountId || !active || !state.current.initialized) return false;
     const parsed = articleSchema.safeParse(state.current.draft);
     if (!parsed.success) {
@@ -157,7 +244,10 @@ export function useArticleDocument(
     setSaving(true);
     setError('');
     try {
-      const value = await mutation.mutateAsync({ data: parsed.data, previous: snapshot.saved });
+      const value = await mutation.mutateAsync({
+        data: parsed.data,
+        previous: against ?? snapshot.saved,
+      });
       if (
         operation.current !== token ||
         liveScope.current !== capturedScope ||
@@ -167,6 +257,10 @@ export function useArticleDocument(
       state.current.saved = value;
       setSaved(value);
       setConflict(false);
+      setLatest(null);
+      setReviewTarget(null);
+      setReloadConfirm(false);
+      setReviewAccepted(false);
       const unchanged = state.current.edits === snapshot.edits;
       if (unchanged) {
         state.current.draft = { title: value.title, text: value.text };
@@ -190,6 +284,15 @@ export function useArticleDocument(
             : messageOf(e),
         );
         failed(e);
+        if (isConflict) {
+          const value = await fetchLatest();
+          if (value && operation.current === token && liveScope.current === capturedScope) {
+            setReviewTarget(value);
+            setReviewInput({ ...state.current.draft });
+            setReviewAccepted(false);
+            setReloadConfirm(true);
+          }
+        }
       }
       return false;
     } finally {
@@ -228,28 +331,42 @@ export function useArticleDocument(
         <Modal
           id="unsavedDialog"
           title="保存修改后再离开？"
-          busy={saving}
+          busy={saving || !!externalGuard?.saving}
           onClose={() => blocker.reset()}
         >
-          <p>文章有未保存的修改。放弃文章修改不会撤销已经保存的个人读法。</p>
+          <p>
+            {externalGuard?.dirty
+              ? 'CMS 有未保存的正文或栏目修改，请保存或明确放弃后离开。'
+              : '文章有未保存的修改。放弃文章修改不会撤销已经保存的个人读法。'}
+          </p>
           <ErrorNotice message={error} />
           <div className="dialog-footer">
-            <button className="button secondary" disabled={saving} onClick={() => blocker.reset()}>
+            <button
+              className="button secondary"
+              disabled={saving || !!externalGuard?.saving}
+              onClick={() => blocker.reset()}
+            >
               继续编辑
             </button>
             <button
               className="button secondary"
-              disabled={saving}
-              onClick={() => blocker.proceed()}
+              disabled={saving || !!externalGuard?.saving}
+              onClick={() => {
+                externalGuard?.discard();
+                blocker.proceed();
+              }}
             >
               放弃更改
             </button>
             <button
               className="button primary"
-              disabled={saving}
+              disabled={saving || !!externalGuard?.saving}
               onClick={() =>
-                void save().then((ok) => {
-                  if (ok && blocker.state === 'blocked') blocker.proceed();
+                void (externalGuard ? externalGuard.save() : save()).then((ok) => {
+                  if (blocker.state === 'blocked') {
+                    if (ok) blocker.proceed();
+                    else blocker.reset();
+                  }
                 })
               }
             >
@@ -265,7 +382,77 @@ export function useArticleDocument(
           busy={saving}
           onClose={() => setReloadConfirm(false)}
         >
-          <p>这会放弃当前未保存的标题和正文，载入服务器最新内容。个人读法不受影响。</p>
+          <p>
+            本地草稿保持在内存中。请对照服务器版本 {reviewTarget?.revision ?? latest?.revision}
+            ；关闭窗口会继续保留输入。个人读法不受影响。
+          </p>
+          {reviewTarget && (
+            <div className="article-conflict-compare" style={{ display: 'grid', gap: 16 }}>
+              <section aria-label="服务器最新内容">
+                <h3>服务器最新内容</h3>
+                <strong>{reviewTarget.title}</strong>
+                <pre
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
+                    maxHeight: 180,
+                    overflow: 'auto',
+                  }}
+                >
+                  {reviewTarget.text}
+                </pre>
+              </section>
+              <section aria-label="整理后的本地内容">
+                <h3>整理后准备保存的内容</h3>
+                <label className="field-label" htmlFor="articleConflictTitle">
+                  标题
+                </label>
+                <input
+                  id="articleConflictTitle"
+                  value={reviewInput.title}
+                  onChange={(e) => {
+                    setReviewInput({ ...reviewInput, title: e.target.value });
+                    edit({ ...reviewInput, title: e.target.value });
+                    setReviewAccepted(false);
+                  }}
+                />
+                <label className="field-label" htmlFor="articleConflictText">
+                  日文正文
+                </label>
+                <textarea
+                  id="articleConflictText"
+                  rows={7}
+                  value={reviewInput.text}
+                  style={{ width: '100%', resize: 'vertical' }}
+                  onChange={(e) => {
+                    setReviewInput({ ...reviewInput, text: e.target.value });
+                    edit({ ...reviewInput, text: e.target.value });
+                    setReviewAccepted(false);
+                  }}
+                />
+                <button
+                  className="text-button"
+                  disabled={saving}
+                  onClick={() => {
+                    setReviewInput({ title: reviewTarget.title, text: reviewTarget.text });
+                    edit({ title: reviewTarget.title, text: reviewTarget.text });
+                    setReviewAccepted(false);
+                  }}
+                >
+                  将服务器内容复制到整理区
+                </button>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={reviewAccepted}
+                    onChange={(e) => setReviewAccepted(e.target.checked)}
+                  />
+                  我已对照标题和正文，确认上方整理结果可以替换所示服务器版本。
+                </label>
+              </section>
+            </div>
+          )}
+          <p>“放弃草稿并重新载入”会丢弃当前未保存的标题和正文。</p>
           <ErrorNotice message={error} />
           <div className="dialog-footer">
             <button
@@ -278,6 +465,18 @@ export function useArticleDocument(
             <button className="button primary" disabled={saving} onClick={() => void reload()}>
               放弃草稿并重新载入
             </button>
+            {reviewTarget && (
+              <button
+                className="button primary"
+                disabled={saving || !reviewAccepted}
+                onClick={() => {
+                  edit(reviewInput);
+                  void save(reviewTarget);
+                }}
+              >
+                按版本 {reviewTarget.revision} 保存整理结果
+              </button>
+            )}
           </div>
         </Modal>
       )}
@@ -296,7 +495,7 @@ export function useArticleDocument(
     edit,
     save,
     saving,
-    error,
+    error: error || remote.error,
     conflict,
     dialogs,
     active,
@@ -305,7 +504,7 @@ export function useArticleDocument(
     loading: query.isPending && routeId !== 'new',
     loadError: query.error ? messageOf(query.error) : '',
     retry: () => void query.refetch(),
-    confirmReload: () => setReloadConfirm(true),
+    confirmReload: () => void beginReview(),
     allowNavigation: () => {
       bypass.current = true;
     },

@@ -6,7 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { savedAudio } = require('./saved-audio-fixture.cjs');
 require('./contract-check.cjs');
 const base = process.env.BASE_URL || 'http://127.0.0.1:4181/';
-const out = path.join(__dirname, 'articles-artifacts');
+const out = process.env.QA_OUTPUT_DIR || path.join(__dirname, 'articles-artifacts');
 const checks = [],
   errors = [];
 const ok = (name) => {
@@ -88,7 +88,7 @@ async function fixture(context) {
       assert.equal(request.headers().origin, new URL(base).origin);
     }
     if (state.fail === method + ':' + endpoint) {
-      state.fail = '';
+      if (!state.persistentFail) state.fail = '';
       return error('DEPENDENCY_UNAVAILABLE', 503);
     }
     if (endpoint === '/v1/auth/me') return send(state.current);
@@ -366,10 +366,9 @@ if (require.main === module) (async () => {
     first.revision++;
     await p.locator('#articleTitle').fill('冲突草稿');
     await p.locator('#saveArticle').click();
-    await p.getByText(/文章已在另一窗口更新/).waitFor();
+    await p.locator('#reloadArticleDialog').waitFor();
     assert.equal(await p.locator('#articleTitle').inputValue(), '冲突草稿');
     await shot(p, 'save-conflict');
-    await p.getByRole('button', { name: '重新载入最新版本', exact: true }).click();
     await p.getByRole('button', { name: '放弃草稿并重新载入' }).click();
     await saved(p);
     assert.equal(await p.locator('#articleTitle').inputValue(), '其他窗口标题');
@@ -415,9 +414,12 @@ if (require.main === module) (async () => {
     await p.waitForURL('**page=1');
     assert.equal(state.rows.length, 20);
     ok('条件删除409与删除末页最后项回退');
+    state.persistentFail = true;
     state.fail = 'GET:/v1/articles';
     await p.reload();
     await p.getByText('文章列表加载失败，请重试。', { exact: true }).waitFor();
+    state.persistentFail = false;
+    state.fail = '';
     await p.getByRole('button', { name: '重新加载文章列表' }).click();
     await p.locator('.article-title').first().waitFor();
     ok('列表加载失败重试与删除503保留');

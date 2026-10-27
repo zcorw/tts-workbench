@@ -2,7 +2,7 @@ const {savedAudio}=require('./saved-audio-fixture.cjs');
 const {chromium}=require('playwright');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const {randomUUID}=require('node:crypto');
 require('./contract-check.cjs');
 const contractMetadata=JSON.parse(fs.readFileSync(path.join(__dirname,'../src/api/contract.json'),'utf8'));
-const base=process.env.BASE_URL||'http://127.0.0.1:4181/';const out=path.join(__dirname,'react-artifacts');const audio=fs.readFileSync(path.join(__dirname,'tone.mp3'));const checks=[];
+const base=process.env.BASE_URL||'http://127.0.0.1:4181/';const out=process.env.QA_OUTPUT_DIR||path.join(__dirname,'react-artifacts');const audio=fs.readFileSync(path.join(__dirname,'tone.mp3'));const checks=[];
 function ok(s){checks.push(s);console.log('PASS',s)}
 async function screenshot(p,name){await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await p.locator('#toast').evaluateAll(items=>items.forEach(e=>e.style.visibility='hidden'));await p.screenshot({path:path.join(out,name+'.png'),fullPage:!(await p.locator('[role="dialog"]').count())});}
 async function fixture(context){const state={accounts:[],current:null,registration:true,voices:false,fail:null,audioFail:false,badAudio:false,delayAudio:0,csrf:'token-0',version:0,requests:[],csrfReads:0};
