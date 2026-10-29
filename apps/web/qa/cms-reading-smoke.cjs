@@ -1,0 +1,45 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const base = process.env.BASE_URL || 'http://127.0.0.1:4382/';
+if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw Error('Loopback only');
+if (!process.env.CMS_TEST_ACCOUNT_FILE || !process.env.QA_OUTPUT_DIR) throw Error('Explicit task test identity and output directory required');
+const identity = JSON.parse(fs.readFileSync(process.env.CMS_TEST_ACCOUNT_FILE, 'utf8'));
+if (!identity.testOnly) throw Error('Only synthetic test identities are supported');
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  const errors = [], checks = [];
+  const page = await context.newPage();
+  page.on('pageerror', e => errors.push(e.message));
+  const out = process.env.QA_OUTPUT_DIR;
+  fs.mkdirSync(out, { recursive: true });
+  try {
+    const csrf = (await (await context.request.get(base + 'v1/auth/csrf')).json()).csrfToken;
+    const login = await context.request.post(base + 'v1/auth/login', { headers: { Origin: new URL(base).origin, 'X-CSRF-Token': csrf }, data: { login: identity.login, password: identity.password } });
+    assert.equal(login.status(), 200);
+    const list = (await (await context.request.get(base + 'v1/cms/read/articles')).json()).items;
+    const release = list.find(r => r.audio);
+    assert(release, 'Synthetic test identity must have a fixed audio release');
+    await page.goto(base + '#/cms/read/' + release.articleId);
+    await page.getByText('此版本已有固定音频，载入后即可播放。', { exact: true }).waitFor();
+    assert.equal(await page.locator('#audioResult').count(), 0);
+    assert(!(await page.locator('.cms-release-player').textContent()).includes('等待生成'));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: path.join(out, 'cms-reading-mobile.png'), fullPage: true });
+    checks.push('Read-only published audio initial state offers loading/playback without generation instructions');
+    await page.getByRole('button', { name: '载入此版本音频', exact: true }).click();
+    await page.locator('#audioResult').waitFor();
+    await page.locator('#playButton').click();
+    await page.waitForFunction(() => document.querySelector('#playState')?.textContent === '正在播放');
+    await page.locator('#stopButton').click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: path.join(out, 'cms-reading-loaded-mobile.png'), fullPage: true });
+    checks.push('Published media still passes strict response/metadata decoding and plays on mobile after loading');
+    assert.deepEqual(errors, []);
+    fs.writeFileSync(path.join(out, 'reading-smoke.json'), JSON.stringify({ base, checks, errors, releaseId: release.id }, null, 2));
+    console.log('PASS final read-only player empty-state and actual mobile playback');
+  } finally { await browser.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

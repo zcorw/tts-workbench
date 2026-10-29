@@ -4,7 +4,7 @@ const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const base = process.env.BASE_URL || 'http://127.0.0.1:4181/';
-const out = path.join(__dirname, 'articles-integration-artifacts');
+const out = process.env.QA_OUTPUT_DIR || path.join(__dirname, 'articles-integration-artifacts');
 const checks = [],
   errors = [];
 const ok = (name) => {
@@ -87,10 +87,9 @@ async function save(p) {
     assert.equal(external.status(), 200);
     await p.locator('#articleTitle').fill('当前冲突草稿');
     await p.locator('#saveArticle').click();
-    await p.getByText(/文章已在另一窗口更新/).waitFor();
+    await p.locator('#reloadArticleDialog').waitFor();
     assert.equal(await p.locator('#articleTitle').inputValue(), '当前冲突草稿');
     await p.screenshot({ path: path.join(out, 'conflict.png'), fullPage: true });
-    await p.getByRole('button', { name: '重新载入最新版本', exact: true }).click();
     await p.getByRole('button', { name: '放弃草稿并重新载入' }).click();
     await p.waitForFunction(
       () => document.querySelector('#articleTitle')?.value === '另一窗口保存',
@@ -132,8 +131,9 @@ async function save(p) {
     await p.locator('#articleEditor').waitFor();
     await p.screenshot({ path: path.join(out, 'article-mobile.png'), fullPage: true });
     assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    assert(await p.locator('#generateButton').isDisabled());
-    ok('真实标题搜索/移动端/无供应商禁用生成');
+    const availableVoices = await (await context.request.get(base + 'v1/voices')).json();
+    assert.equal(await p.locator('#generateButton').isDisabled(), availableVoices.items.length === 0);
+    ok('真实标题搜索/移动端/生成按钮与供应商目录一致');
     await p.locator('[data-view="articles"]').click();
     await p.getByRole('button', { name: '删除文章：同账户恢复草稿' }).click();
     await p.getByRole('button', { name: '确认删除', exact: true }).click();

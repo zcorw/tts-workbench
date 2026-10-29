@@ -45,6 +45,8 @@ import { ApiError } from "./errors.js";
 import { VocabularyService } from "./vocabulary.js";
 import { SpeechService } from "./speech.js";
 import { ArticleService } from "./articles.js";
+import { CmsService } from "./cms.js";
+import { createCmsRouter } from "./cms-http.js";
 import { GatewayError } from "tts-gateway";
 interface ApiRequest extends Request {
   requestId: string;
@@ -58,6 +60,7 @@ export interface State {
   vocabulary: VocabularyService;
   speech: SpeechService;
   articles: ArticleService;
+  cms: CmsService;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
   let status = 503,
@@ -421,7 +424,20 @@ export async function createApplication(config: Config) {
     throw e;
   }
   const articles = new ArticleService(pool, config.MAX_ARTICLES ?? 100);
-  const state: State = { pool, config, csrf, vocabulary, speech, articles };
+  const cms = new CmsService(
+    pool,
+    articles,
+    config.CMS_READ_TOKENS_ENABLED ?? false,
+  );
+  const state: State = {
+    pool,
+    config,
+    csrf,
+    vocabulary,
+    speech,
+    articles,
+    cms,
+  };
   @Module({
     imports: [
       AccountModule.registerAsync({
@@ -482,7 +498,17 @@ export async function createApplication(config: Config) {
         dotfiles: "deny",
       }),
     );
-  server.use(express.json({ limit: 65536, strict: true }));
+  const standardJson = express.json({ limit: 65536, strict: true });
+  const importJson = express.json({ limit: 1048576, strict: true });
+  server.use((req: Request, res: Response, next: NextFunction) => {
+    // Only the two structured-import endpoints accept the larger envelope.
+    const parser =
+      req.method === "POST" &&
+      /^\/v1\/cms\/import(?:\/preview)?\/?$/i.test(req.path)
+        ? importJson
+        : standardJson;
+    parser(req, res, next);
+  });
   server.use(sessions.middleware);
   server.use((req: Request, res: Response, next: NextFunction) => {
     resolveAccountSession(req, app.get(AccountService))
@@ -492,6 +518,16 @@ export async function createApplication(config: Config) {
         next();
       })
       .catch((e) => sendError(e, req, res));
+  });
+  server.use((req: Request, res: Response, next: NextFunction) => {
+    // A read credential must never authorize the workbench, generation, or CMS writes.
+    if (
+      req.get("Authorization") &&
+      /^Bearer\s/i.test(req.get("Authorization")!) &&
+      !(req.method === "GET" && /^\/v1\/cms\/read(?:\/|$)/i.test(req.path))
+    )
+      return sendError(new ApiError(403, "FORBIDDEN"), req, res);
+    next();
   });
   server.use("/v1", csrf.csrfSynchronisedProtection);
   server.use(
@@ -510,6 +546,7 @@ export async function createApplication(config: Config) {
         sendError(new ApiError(429, "RATE_LIMITED"), req, res),
     }),
   );
+  server.use("/v1/cms", createCmsRouter(cms, config.PUBLIC_ORIGIN));
   server.use(
     (error: unknown, req: Request, res: Response, _next: NextFunction) =>
       sendError(error, req, res),

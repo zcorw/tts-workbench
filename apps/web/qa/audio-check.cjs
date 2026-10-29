@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const base = process.env.BASE_URL || 'http://127.0.0.1:4181/';
-const out = path.join(__dirname, 'audio-artifacts');
+const out = process.env.QA_OUTPUT_DIR || path.join(__dirname, 'audio-artifacts');
 const checks = [],
   errors = [];
 const ok = (text) => {

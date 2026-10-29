@@ -55,7 +55,7 @@ npm --prefix apps/web run dev
 - 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
-唯一[OpenAPI 1.1.0](docs/openapi.yaml)含24个操作，规范校验、前端生成类型和[产品契约评审](docs/API_REVIEW.md)通过。新增文章7操作的运行交付状态见[增量计划](docs/ARTICLE_MANAGEMENT.md)，接口修改须同步契约和前端生成类型。
+当前[OpenAPI 1.4.0](docs/openapi.yaml)含52个操作，规范校验及前端生成类型检查通过。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)；接口修改须同步契约和前端生成类型。
 
 ## 部署
 
@@ -70,3 +70,13 @@ npm --prefix apps/web run dev
 本次增量：应用完整6项真实HTTP/PG测试、文章与音频备份恢复通过；Gateway语速修复17项定向测试及构建/类型检查通过。产品独立执行文章CRUD接口与浏览器验收、最新音频7组接口与5组浏览器检查，验证真实解码播放下载、失败保留、替换及刷新恢复。前端各组交互、回归与构建记录见[前端报告](apps/web/qa/REPORT.md)。测试音调不代表真实日文发音效果通过。
 
 [开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地Git由产品按完成的功能点提交；尚未推送或远程部署。
+
+## CMS 独立站点
+
+CMS 前端位于 apps/cms，拥有自己的首页、布局、导航、登录页和构建产物；原工作台 apps/web 保持自己的入口。两站复用平台 API、正文、发布版本与音频，不新建第二套后端或数据库。独立构建/预览与安全边界见 [CMS 站点说明](docs/CMS_FRONTEND.md)，功能、数据模型与 JSON 导入样例见 [CMS 功能说明](docs/CMS_V1.md)。
+
+本地隔离预览：工作台 http://127.0.0.1:4382/ ；CMS http://127.0.0.1:4384/ 。真实数据、收费 TTS、AI 凭证与生产部署未接入。
+
+分类管理提供父子树、排序、直接文章计数、未分类入口与按版本检查的批量归类。使用与数据边界见 [分类管理说明](docs/CMS_CATEGORIES.md)。
+
+阅读库提供基于发布快照的分类浏览、三行正文预览和卡片内按需播放，数量与分页保持一致；历史分类变更不改写旧发布。详见 [阅读库说明](docs/CMS_READING.md)。

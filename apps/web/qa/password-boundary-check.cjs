@@ -93,7 +93,7 @@ const meta = require('../src/api/contract.json');
       submissions,
       errors,
     };
-    const directory = path.join(__dirname, 'password-artifacts');
+    const directory = process.env.QA_OUTPUT_DIR || path.join(__dirname, 'password-artifacts');
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(
       path.join(directory, `${new URL(base).port || '80'}-results.json`),
