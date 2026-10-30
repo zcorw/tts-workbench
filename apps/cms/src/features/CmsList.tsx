@@ -5,9 +5,16 @@ import { ErrorNotice, Modal, useServices } from '@workbench/components/shared';
 import { messageOf, ServiceError } from '@workbench/types';
 import { cmsHttp } from './http';
 import { categoryEntries } from './categoryTree';
-import type { CmsSummary } from './types';
+import type { CmsSummary, NavigationGuard } from './types';
+import { publishBatch, type PublishResult } from './publishBatch';
 import { workbenchHref } from '../links';
-export function CmsList({ accountId }: { accountId: string }) {
+export function CmsList({
+  accountId,
+  onGuardChange,
+}: {
+  accountId: string;
+  onGuardChange: (guard: NavigationGuard | undefined) => void;
+}) {
   const [params, setParams] = useSearchParams(),
     client = useQueryClient(),
     { failed } = useServices();
@@ -25,6 +32,16 @@ export function CmsList({ accountId }: { accountId: string }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('');
+  const [publishing, setPublishing] = useState<CmsSummary[] | null>(null),
+    [allowTextOnly, setAllowTextOnly] = useState(false),
+    [publishResults, setPublishResults] = useState<PublishResult[]>([]);
+  const publishLock = useRef(false);
+  useEffect(() => {
+    if (busy)
+      onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
+    else onGuardChange(undefined);
+    return () => onGuardChange(undefined);
+  }, [busy, onGuardChange]);
   const [needsRefresh, setNeedsRefresh] = useState(false),
     alive = useRef(true);
   useEffect(() => {
@@ -37,6 +54,8 @@ export function CmsList({ accountId }: { accountId: string }) {
     setSearch(q);
     setSelected({});
     setConfirm(false);
+    setPublishing(null);
+    setPublishResults([]);
     setError('');
     setNotice('');
     setNeedsRefresh(false);
@@ -87,7 +106,7 @@ export function CmsList({ accountId }: { accountId: string }) {
       setSelected(Object.fromEntries(latest.map((article) => [article.id, article])));
       setNeedsRefresh(false);
       setNotice(
-        '已载入所选文章的最新版本；即使归属或排序已变化，选择仍保留。请核对标题和目标分类，再确认移动。未自动提交。',
+        '已载入所选文章的最新版本；即使归属或排序已变化，选择仍保留。请核对标题、分类和音频，再重新确认操作。未自动提交。',
       );
       await taxonomy.refetch();
     } catch (e) {
@@ -127,6 +146,51 @@ export function CmsList({ accountId }: { accountId: string }) {
         failed(e);
       }
     } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+  const publishSelected = async () => {
+    if (publishLock.current || !publishing) return;
+    publishLock.current = true;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    const batch = publishing;
+    try {
+      const results = await publishBatch(batch, allowTextOnly, {
+        publish: cmsHttp.publish,
+        active: () => alive.current,
+        progress: (value) => {
+          if (alive.current) setPublishResults([...value]);
+        },
+      });
+      // Invalidate even if this page unmounted while a request was finishing.
+      void client.invalidateQueries({ queryKey: ['cms', accountId] });
+      if (!alive.current) return;
+      setPublishResults(results);
+      const successful = new Set(
+        results.filter((r) => r.status === 'success').map((r) => r.article.id),
+      );
+      setSelected(
+        Object.fromEntries(batch.filter((a) => !successful.has(a.id)).map((a) => [a.id, a])),
+      );
+      setNeedsRefresh(successful.size < batch.length);
+      setPublishing(null);
+      setNotice(
+        `本次 ${batch.length} 篇：已上线 ${successful.size} 篇，未完成 ${batch.length - successful.size} 篇。`,
+      );
+      if (successful.size < batch.length) {
+        setError(
+          '未完成的文章已保留选择。请先载入最新版本并核对阅读库，再重新确认；不会自动重试。',
+        );
+      }
+    } catch (e) {
+      if (alive.current) {
+        setError(messageOf(e));
+        failed(e);
+      }
+    } finally {
+      publishLock.current = false;
       if (alive.current) setBusy(false);
     }
   };
@@ -256,7 +320,7 @@ export function CmsList({ accountId }: { accountId: string }) {
               {notice}
             </p>
           )}
-          <div className="cms-bulk-toolbar" aria-label="批量分类操作">
+          <div className="cms-bulk-toolbar" aria-label="批量文章操作">
             <label className="cms-check">
               <input
                 id="cmsSelectPage"
@@ -295,6 +359,19 @@ export function CmsList({ accountId }: { accountId: string }) {
             >
               移动所选文章…
             </button>
+            <button
+              id="cmsPublishSelected"
+              className="button primary"
+              disabled={busy || !chosen.length || needsRefresh}
+              onClick={() => {
+                setPublishing([...chosen]);
+                setAllowTextOnly(false);
+                setPublishResults([]);
+                setError('');
+              }}
+            >
+              批量上线到阅读库…
+            </button>
             {chosen.length > 0 && (
               <button
                 className="text-button"
@@ -319,6 +396,18 @@ export function CmsList({ accountId }: { accountId: string }) {
               </button>
             )}
           </div>
+          {publishResults.length > 0 && !publishing && (
+            <div className="cms-publish-results" aria-label="批量上线结果" role="status">
+              <h3>本次上线结果</h3>
+              <ul>
+                {publishResults.map((result) => (
+                  <li key={result.article.id}>
+                    <strong>{result.article.title}</strong>：{result.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {query.isPending ? (
             <p role="status">正在载入内容…</p>
           ) : (
@@ -409,6 +498,74 @@ export function CmsList({ accountId }: { accountId: string }) {
           )}
         </div>
       </div>
+      {publishing && (
+        <Modal
+          id="cmsBulkPublishConfirm"
+          title="批量上线到本人阅读库？"
+          busy={busy}
+          onClose={() => setPublishing(null)}
+        >
+          <p>
+            本次选择 {publishing.length} 篇（仅本页，最多 20
+            篇）。将逐篇固定当前已保存的正文、分类及音频版本，不是匿名公开发布。
+          </p>
+          <p>已上线文章会创建新发布版本并替换阅读库当前展示。单篇失败不撤销其他已成功的文章。</p>
+          <ul className="cms-move-titles" aria-label="本次上线的文章">
+            {publishing.map((article) => (
+              <li key={article.id}>
+                <strong>{article.title}</strong>
+                <span className="small-note">
+                  {' '}
+                  · 正文 v{article.revision} / CMS v{article.cms.revision}
+                  {article.cms.publishedReleaseId ? ' · 更新已上线版本' : ' · 首次上线'}
+                  {article.audio && !article.audioStale
+                    ? ` · 含音频 ${article.audio.voice} / ${article.audio.speed.toFixed(2)}×`
+                    : ' · 无有效音频（仅正文）'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {publishing.some((a) => !a.audio || a.audioStale) && (
+            <label className="cms-check">
+              <input
+                id="cmsBulkPublishTextOnly"
+                type="checkbox"
+                checked={allowTextOnly}
+                disabled={busy}
+                onChange={(e) => setAllowTextOnly(e.target.checked)}
+              />
+              明确允许无有效音频的文章仅上线正文（不会生成语音）
+            </label>
+          )}
+          <p className="small-note">
+            有有效音频的文章使用上面列出的已保存音频。版本变化会拒绝该篇发布，请核对后重试。
+          </p>
+          {busy && (
+            <p role="status">
+              正在上线 {publishResults.length} / {publishing.length} 篇，请勿关闭页面…
+            </p>
+          )}
+          <div className="dialog-footer">
+            <button
+              className="button secondary"
+              disabled={busy}
+              onClick={() => setPublishing(null)}
+            >
+              取消
+            </button>
+            <button
+              id="cmsBulkPublishSubmit"
+              className="button primary"
+              disabled={
+                busy || (!allowTextOnly && publishing.some((a) => !a.audio || a.audioStale))
+              }
+              onClick={() => void publishSelected()}
+            >
+              {busy ? '正在上线…' : `确认上线 ${publishing.length} 篇`}
+            </button>
+          </div>
+        </Modal>
+      )}
       {confirm && (
         <Modal
           id="cmsMoveCategoryConfirm"
