@@ -11,7 +11,10 @@ import { CmsService, type ReadIdentity } from "./cms.js";
 interface CmsRequest extends Request {
   account?: { id: string };
 }
-export function createCmsRouter(cms: CmsService, origin: string) {
+export function createCmsRouter(
+  cms: CmsService,
+  origin: string | ((req: Request) => string),
+) {
   const router = Router();
   const owner = (req: CmsRequest) => {
     if (!req.account) throw new ApiError(401, "UNAUTHENTICATED");
@@ -99,7 +102,12 @@ export function createCmsRouter(cms: CmsService, origin: string) {
     route(async (req, res) => {
       res
         .type("application/rss+xml")
-        .send(await cms.rss(await readIdentity(req), origin));
+        .send(
+          await cms.rss(
+            await readIdentity(req),
+            typeof origin === "string" ? origin : origin(req),
+          ),
+        );
     }),
   );
 

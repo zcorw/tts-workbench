@@ -1,5 +1,7 @@
 # CMS 独立前端站点
 
+> 2026-10-29 更新：生产镜像现包含独立 CMS，复用同一 app 容器并增加默认回环 8081→3001 入口。两个站点的外部 origin、迁移升级和 Nginx 示例见 [同容器双入口](CMS_CONTAINER.md)。下文原“唯一宿主端口”描述属于此前工作台部署；工作台 8080→3000 入口保持。未填写 CMS_PUBLIC_ORIGIN 时 CMS API 返回503，原工作台仍可用。
+
 阅读库入口为`/read`，提供发布分类、三行正文和卡片内按需互斥播放；本轮阅读版使用本地任务qa/START_READING_PREVIEW.ps1与新虚构库cms_reading_preview_20261027，保留原分类验收库。功能与快照边界见 [阅读库说明](CMS_READING.md)。
 
 分类管理仍位于独立 CMS 站点的 `/taxonomy`，文章页提供层级导航、未分类和批量移动。分类版隔离预览使用本地任务 `qa/START_CATEGORIES_PREVIEW.ps1`，原 `cms_v1_test3` 测试库保留，新库为 `cms_categories_preview_20261027`；运行时仍为两个前端复用一个后端。详见 [分类管理](CMS_CATEGORIES.md)。
@@ -42,7 +44,7 @@ npm.cmd --prefix apps/cms run preview
 - CMS：http://127.0.0.1:4384/ （根地址是独立内容站点，登录后是概览首页）
 - CMS 内站路由：/articles、/articles/:id、/read、/read/:id、/import、/taxonomy、/interfaces、/account、/login、/register。
 
-跨站链接默认新标签页打开，正文编辑跳转保留相同 articleId。CMS 的 VITE_WORKBENCH_SITE_URL 和工作台的 VITE_CMS_SITE_URL 只配置公共站点地址，不放凭证。部署到其他地址时可以分别构建替换链接，不能把这两个变量当作 API 授权。
+跨站链接默认新标签页打开，正文编辑跳转保留相同 articleId。生产同容器双入口通过公开 `/site-config.json` 取得 `PUBLIC_ORIGIN` / `CMS_PUBLIC_ORIGIN` 的站点地址；CMS 未配置时不把本机默认地址用于生产跳转。CMS 的 VITE_WORKBENCH_SITE_URL 和工作台的 VITE_CMS_SITE_URL 保留本地独立 Vite 用法的兼容配置，只放公共地址，不放凭证，也不提供 API 授权。
 
 双站点使用本任务隔离数据库和模拟 TTS。重复启动说明与脚本位于本地任务目录：
 

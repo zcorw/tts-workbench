@@ -1,5 +1,7 @@
 # VPS 部署指南：Docker 直接部署与 GitHub Actions
 
+> 2026-10-29 更新：生产镜像现包含独立 CMS，复用同一 app 容器并增加默认回环 8081→3001 入口。两个站点的外部 origin、迁移升级和 Nginx 示例见 [同容器双入口](CMS_CONTAINER.md)。下文原“唯一宿主端口”描述属于此前工作台部署；工作台 8080→3000 入口保持。未填写 CMS_PUBLIC_ORIGIN 时 CMS API 返回503，原工作台仍可用。
+
 更新：2026-09-10。适用于当前 **tts-workbench 应用仓库**：React + NestJS + PostgreSQL 17，包含文章增删改查及每篇最后成功音频。账户包和 Gateway 包已包含在 `vendor/` 中，部署应用不需要克隆另外两个工程。
 
 本文提供两条部署路径，并共用账号初始化、HTTPS、备份和故障处理步骤。命令以 **Ubuntu 24.04 LTS、Linux amd64、Bash** 为示例；这是本文选择的执行环境。当前 Actions 在 amd64 runner 构建，没有配置多架构产物；ARM VPS 需另行验证。
@@ -21,21 +23,22 @@
 
 阅读顺序：**第 2、3 节共同准备 → 第 4 或 5 节部署 → 第 6、7 节登录验收 → 第 8、9 节日常运维**。
 
-部署拓扑固定为：
+当前双入口部署拓扑为：
 
 ~~~text
-浏览器 HTTPS :443
-        ↓
-VPS 宿主机 Nginx（域名与 TLS）
-        ↓
-127.0.0.1:8080（唯一 Docker 宿主映射，可改端口）
-        ↓
-app:3000（React 静态文件 + /v1 API + 音频）
-        ↓
-db:5432（仅 Compose 内网，PostgreSQL 持久卷）
+工作台 HTTPS 域名             CMS HTTPS 域名
+        ↓                           ↓
+VPS 宿主机 Nginx（分别配置域名与 TLS）
+        ↓                           ↓
+127.0.0.1:8080                 127.0.0.1:8081
+        ↓                           ↓
+app:3000 原工作台              app:3001 独立 CMS
+        └──── 同一 Node API/账户/TTS 进程 ────┘
+                        ↓
+db:5432（仅 Compose 内网，原 PostgreSQL 持久卷）
 ~~~
 
-不要另开前端 4181、API 3000 或数据库 5432 的公网入口。生产页面、接口和音频共用同一 HTTPS 域名。
+不要对公网开放前端开发端口、容器 API 3000/3001、宿主回环 8080/8081 或数据库 5432。每个站点的页面、接口和音频请求使用本站 HTTPS 域名。启用 CMS 需要明确配置 `CMS_PUBLIC_ORIGIN`，不填写时只保留原工作台 API 可用。
 
 ## 2. VPS 共同准备
 
@@ -128,11 +131,13 @@ EOF
 | `POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD` | PostgreSQL 初始化配置。已有数据库卷不会因修改这些值自动修改用户密码或创建新库。 |
 | `DATABASE_URL` | app 使用的连接串；主机必须为 `db`，端口5432，并与数据库实际凭据一致。自选含特殊字符的密码需对 URL 中的密码部分编码。 |
 | `SESSION_SECRET` | 至少32字符；保持稳定。更换后已有会话可能失效。 |
-| `PUBLIC_ORIGIN` | 真实 HTTPS origin，例如 `https://tts.example.com`；不是容器地址或带路径的 URL。生产模式拒绝 HTTP。 |
+| `PUBLIC_ORIGIN` | 原工作台真实 HTTPS origin，例如 `https://tts.example.com`；不是容器地址或带路径的 URL。生产模式拒绝 HTTP。 |
+| `CMS_PUBLIC_ORIGIN` | 独立 CMS 的明确 HTTPS origin，例如 `https://cms.example.com`；缺省时 CMS API 返回503，原工作台保持可用。 |
 | `TRUST_PROXY` | 初始 `loopback` 仅用于启动；**首次发布后必须按第 6 节核实并填写 Docker 网关地址**，否则 HTTPS 登录可能不设置 Cookie。 |
 | `REGISTRATION_ENABLED` | 默认 false。通过第 7 节 CLI 开通账号，无需开放公共注册。 |
 | `MAX_ARTICLES` | 每账户文章上限，默认100。 |
-| `APP_HOST_PORT` | 宿主回环端口，默认8080；修改时同步 Nginx 的上游端口。 |
+| `APP_HOST_PORT` | 工作台宿主回环端口，默认8080；修改时同步 Nginx 的工作台上游端口。 |
+| `CMS_HOST_PORT` | CMS 宿主回环端口，默认8081；与工作台端口不同，修改时同步 CMS 域名的 Nginx 上游。 |
 
 `APP_IMAGE` 和 `RUNTIME_ENV_FILE` 写入每个 release 的 `release.env`，不手工混进服务器长期配置。两份 env 文件用途不同：Compose 的 `--env-file` 负责变量替换，`RUNTIME_ENV_FILE` 指向的文件通过服务 `env_file` 注入容器。使用后文完整命令，不要仅在任意目录执行 `docker compose up`。[Compose 环境变量说明](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
 
@@ -228,7 +233,7 @@ server {
 }
 ~~~
 
-配置与仓库 [nginx.conf.example](../deploy/nginx.conf.example)的 HTTPS 代理段一致。Nginx 覆盖转发头，并把页面、API、音频传到同一入口；不要另外给 `/v1` 配置前端兜底或把错误改写成 HTML。[Nginx 代理头文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header)
+上面为原工作台代理段。当前完整 [nginx.conf.example](../deploy/nginx.conf.example) 另含独立 CMS 域名到回环8081的代理，以及两个导入路径的1MiB限制；升级时按该示例合并，不替换其他站点。Nginx 覆盖转发头，原样保留 Origin；每站页面、API、音频到其对应端口，不给 `/v1` 配置前端兜底或把错误改写成 HTML。[Nginx 代理头文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header)
 
 ~~~bash
 sudo nginx -t
@@ -547,7 +552,7 @@ app_id=$(compose ps -q app)
 docker port "$app_id"
 ~~~
 
-预期只有 `3000/tcp -> 127.0.0.1:8080`；db没有宿主端口。直接访问 `http://VPS公网IP:8080` 不应成功。
+默认预期为 `3000/tcp -> 127.0.0.1:8080` 和 `3001/tcp -> 127.0.0.1:8081`；db没有宿主端口。两个宿主端口均不应从公网直接访问；还需分别检查 CMS 回环入口及其 HTTPS 域名。自定义端口以实际配置为准。
 
 ## 7. 创建账号与验收
 
