@@ -4,6 +4,14 @@ VPS 从零部署请先阅读 [VPS 部署指南](VPS_DEPLOYMENT.md)，包含 Dock
 
 当前应用为React + NestJS + PostgreSQL；账户0.1.1与Gateway0.1.1版本包已置于vendor，应用无需兄弟源码即可构建。生产仅一个应用入口同时提供React静态资源及/v1，文章列表使用/#/articles，工作区使用/#/articles/:id。无供应商配置时音色列表为空、合成503；不会以测试声音兜底。
 
+## 安全版本与依赖覆盖
+
+当前验证基线为 Node.js 22.23.4（22.x），Docker、CI 与 `.nvmrc` 保持一致；运行镜像只保留 Node，安装/构建/审计在构建阶段或 CI 完成，容器内运维继续使用 `node apps/api/dist/operations.js`。
+
+API 使用 NestJS 12.2.0、Express 5.3.0、Zod 4.6.7；Web 使用 Vite 8.3.5。账户和 Gateway 版本包的精确旧依赖通过已审查的 overrides 统一，Multer 固定2.5.0、body-parser固定2.4.0。具体版本、适用范围及回归见[安全修复说明](SECURITY_REMEDIATION.md)。
+
+root、API、Web、CMS 的完整 npm 审计及 API 生产依赖审计均为0。本地候选通过安全8项、API54项及浏览器21组验证；CI安装后执行四包审计，高危或严重项会阻止后续发布，中危仍会报告。工作流仅手动触发，推送代码不等于生产上线。本轮没有执行VPS或镜像OS层安全扫描，不能把npm审计0解释为整个系统无漏洞。
+
 ## 本地运行
 
 ### Windows 一键重建 Docker Compose
@@ -26,7 +34,7 @@ Compose 项目名默认 `tts-workbench`，可在 `.env` 或终端设置 `COMPOSE
 
 2026-09-09 实测：Windows PowerShell 5.1 语法解析、错误参数非零退出、默认缓存重建、从工程外目录调用 `rebuild.cmd --no-cache`、8081 端口覆盖及恢复8080均通过；页面和 `/health/ready` 返回200。重复重建时数据库容器 ID、卷名、数据库 system identifier 及两张迁移表记录数保持不变。新本地项目仅有一个 `127.0.0.1` 映射，db 无宿主映射；原 `tts-workbench-verify` 测试项目保持运行、未改动。
 
-Node 22.12+及PostgreSQL17。应用根执行npm ci，分别在apps/api和apps/web执行npm ci。复制.env.example为.env，填入数据库URL和随机Session秘密；PUBLIC_ORIGIN开发默认http://127.0.0.1:4181。
+Node 22.23.4（22.x）及PostgreSQL17。应用根执行npm ci，分别在apps/api和apps/web执行npm ci。复制.env.example为.env，填入数据库URL和随机Session秘密；PUBLIC_ORIGIN开发默认http://127.0.0.1:4181。
 
 ```sh
 npm --prefix apps/api run build

@@ -64,6 +64,16 @@ export interface State {
   cms: CmsService;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
+  const parserError =
+    error instanceof Error
+      ? (error as Error & {
+          status?: number;
+          statusCode?: number;
+          expose?: boolean;
+          type?: string;
+          code?: string;
+        })
+      : undefined;
   let status = 503,
     code = "DEPENDENCY_UNAVAILABLE";
   if (error instanceof ApiError) {
@@ -124,6 +134,26 @@ export function sendError(error: unknown, req: Request, res: Response) {
   } else if ((error as any)?.type === "entity.too.large") {
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
+  } else if (
+    parserError?.expose === true &&
+    parserError.status === 415 &&
+    parserError.statusCode === 415 &&
+    ["encoding.unsupported", "charset.unsupported"].includes(
+      parserError.type ?? "",
+    )
+  ) {
+    status = 415;
+    code = "UNSUPPORTED_MEDIA_TYPE";
+  } else if (
+    parserError?.expose === true &&
+    parserError.status === 400 &&
+    parserError.statusCode === 400 &&
+    ["Z_DATA_ERROR", "Z_BUF_ERROR"].includes(parserError.code ?? "")
+  ) {
+    // body-parser wraps zlib failures as exposed 400 errors. Only these known
+    // parser failures get client status; an arbitrary internal status stays 503.
+    status = 400;
+    code = "INVALID_REQUEST";
   } else if (error instanceof SyntaxError) {
     status = 400;
     code = "INVALID_REQUEST";

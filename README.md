@@ -21,6 +21,8 @@ React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默�
 
 务必在应用容器内创建，避免宿主机 `node --env-file=.env ... create` 连到旧开发库。VPS / GitHub Actions 部署后的临时密码传递、清理验证和常见错误，见[首次部署后的账号初始化](docs/operations.md#首次部署后的账号初始化)。
 
+运行基线：Node.js 22.23.4、NestJS 12.2.0；安全依赖覆盖和升级验证说明见[运维说明](docs/operations.md#安全版本与依赖覆盖)。
+
 ## 本地入口
 
 Windows Docker Compose 一键重建：准备 `.env` 并启动 Docker Desktop 后，双击根目录 `rebuild.cmd` 或执行 `.\rebuild.cmd`；无缓存用 `.\rebuild.cmd --no-cache`。保留数据库卷，端口读取 `APP_HOST_PORT`（默认8080），完成后显示实际访问地址。配置与已有项目数据说明见[运维说明](docs/operations.md#windows-一键重建-docker-compose)。

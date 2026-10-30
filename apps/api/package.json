@@ -9,13 +9,13 @@
     "test": "npm run build && node --test --test-concurrency=1 test/*.test.mjs"
   },
   "dependencies": {
-    "@nestjs/common": "12.0.1",
-    "@nestjs/core": "12.0.1",
-    "@nestjs/platform-express": "12.0.1",
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
     "@tts-workbench/account-core": "file:../../vendor/tts-workbench-account-core-0.1.1.tgz",
     "@tts-workbench/account-postgres": "file:../../vendor/tts-workbench-account-postgres-0.1.1.tgz",
     "csrf-sync": "4.2.1",
-    "express": "5.2.1",
+    "express": "5.3.0",
     "express-rate-limit": "8.7.0",
     "express-session": "1.19.0",
     "node-pg-migrate": "9.0.0",
@@ -23,7 +23,7 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "tts-gateway": "file:../../vendor/tts-gateway-0.1.1.tgz",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "7.0.3",
@@ -32,5 +32,17 @@
     "@types/node": "22.20.1",
     "@types/pg": "8.16.0",
     "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23",
+    "npm": ">=10 <11"
+  },
+  "overrides": {
+    "@nestjs/common": "$@nestjs/common",
+    "@nestjs/core": "$@nestjs/core",
+    "@nestjs/platform-express": "$@nestjs/platform-express",
+    "zod": "$zod",
+    "multer": "2.5.0",
+    "body-parser": "2.4.0"
   }
 }

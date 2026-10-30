@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 WORKDIR /app
 COPY vendor ./vendor
 COPY apps/api/package*.json ./apps/api/
@@ -14,7 +14,9 @@ RUN cd apps/api && npm run build && npm prune --omit=dev
 RUN cd apps/web && npm run build
 RUN cd apps/cms && npm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22.23.4-bookworm-slim AS runtime
+# Runtime only needs node; remove package managers and their unused dependency trees.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 WEB_DIST=/app/apps/web/dist CMS_PORT=3001 CMS_DIST=/app/apps/cms/dist
 WORKDIR /app
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
