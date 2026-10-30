@@ -152,6 +152,8 @@ export function CmsList({
   const publishSelected = async () => {
     if (publishLock.current || !publishing) return;
     publishLock.current = true;
+    // Protect an immediate Back/close before React commits the busy effect.
+    onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
     setBusy(true);
     setError('');
     setNotice('');

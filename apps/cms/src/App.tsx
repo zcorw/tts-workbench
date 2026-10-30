@@ -47,7 +47,10 @@ export function App({ services }: { services: Services }) {
   const allowNavigation = useCallback(() => {
     bypass.current = true;
   }, []);
-  const onGuardChange = useCallback((value: NavigationGuard | undefined) => setGuard(value), []);
+  const onGuardChange = useCallback((value: NavigationGuard | undefined) => {
+    liveGuard.current = value;
+    setGuard(value);
+  }, []);
   const clearPrivate = useCallback(() => {
     for (const prefix of ['cms', 'article', 'articles', 'rules', 'voices'])
       client.removeQueries({ queryKey: [prefix] });

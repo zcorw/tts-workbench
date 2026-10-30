@@ -133,8 +133,14 @@ const make = () =>
     assert.equal(calls.length, 4);
     assert.equal(await page.locator('.cms-selectable-items input:checked').count(), 0);
     // Back during an in-flight request must not leave or submit twice.
-    await page.goto(base + '/articles?q=first');
-    await page.goto(base + '/articles');
+    // Create same-document router history. Two page.goto calls would test a
+    // browser unload instead of the React Router navigation blocker below.
+    await page.locator('#cmsArticleSearch').fill('first');
+    await page.locator('.cms-filters').getByRole('button', { name: '搜索', exact: true }).click();
+    await page.waitForURL(base + '/articles?q=first');
+    await page.locator('#cmsArticleSearch').fill('');
+    await page.locator('.cms-filters').getByRole('button', { name: '搜索', exact: true }).click();
+    await page.waitForURL((url) => url.pathname === '/articles' && url.search === '');
     await page.locator('#cmsSelectPage').check();
     await page.locator('#cmsPublishSelected').click();
     await page.locator('#cmsBulkPublishTextOnly').check();
@@ -149,6 +155,7 @@ const make = () =>
     // Mobile layout and text wrapping.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#cmsSelectPage').check();
+    await page.locator('h1').click();
     await page.screenshot({ path: path.join(out, 'bulk-publish-mobile.png'), fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     // Closing the confirmation never writes; a fresh opening requires consent again.
