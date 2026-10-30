@@ -151,7 +151,7 @@ export const cmsHttp = {
   releases: (id: string) => json<{ items: CmsRelease[] }>(`${path(id)}/releases`),
   release: (id: string, releaseId: string) =>
     json<CmsRelease>(`${path(id)}/releases/${encodeURIComponent(releaseId)}`),
-  publish: (article: CmsArticle, audioId: string | null) =>
+  publish: (article: CmsSummary, audioId: string | null) =>
     write<CmsRelease>(`${path(article.id)}/releases`, 'POST', {
       expectedRevision: article.revision,
       expectedCmsRevision: article.cms.revision,

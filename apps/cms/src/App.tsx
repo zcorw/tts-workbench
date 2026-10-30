@@ -47,7 +47,10 @@ export function App({ services }: { services: Services }) {
   const allowNavigation = useCallback(() => {
     bypass.current = true;
   }, []);
-  const onGuardChange = useCallback((value: NavigationGuard | undefined) => setGuard(value), []);
+  const onGuardChange = useCallback((value: NavigationGuard | undefined) => {
+    liveGuard.current = value;
+    setGuard(value);
+  }, []);
   const clearPrivate = useCallback(() => {
     for (const prefix of ['cms', 'article', 'articles', 'rules', 'voices'])
       client.removeQueries({ queryKey: [prefix] });
@@ -118,6 +121,15 @@ export function App({ services }: { services: Services }) {
     const value = liveGuard.current;
     return !!value && (value.dirty || value.saving) && currentLocation.key !== nextLocation.key;
   });
+  useEffect(() => {
+    if (
+      location.pathname === '/articles' &&
+      blocker.state === 'blocked' &&
+      !guard?.dirty &&
+      !guard?.saving
+    )
+      blocker.reset();
+  }, [blocker, guard, location.pathname]);
   const liveBlocker = useRef(blocker);
   liveBlocker.current = blocker;
   useBeforeUnload(
@@ -202,46 +214,52 @@ export function App({ services }: { services: Services }) {
       {blocker.state === 'blocked' && (
         <Modal
           id="unsavedDialog"
-          title="保存修改后再离开？"
+          title={guard?.saving ? '正在处理，请稍候' : '保存修改后再离开？'}
           busy={guard?.saving}
           onClose={() => blocker.reset()}
         >
-          <p>文章有未保存修改。保存正文和 CMS 信息不会自动生成音频或发布。</p>
-          <div className="dialog-footer">
-            <button
-              className="button secondary"
-              disabled={guard?.saving}
-              onClick={() => blocker.reset()}
-            >
-              继续编辑
-            </button>
-            <button
-              className="button secondary"
-              disabled={guard?.saving}
-              onClick={() => {
-                liveGuard.current?.discard();
-                blocker.proceed();
-              }}
-            >
-              放弃更改
-            </button>
-            <button
-              className="button primary"
-              disabled={guard?.saving}
-              onClick={() =>
-                void (async () => {
-                  const success = await liveGuard.current?.save();
-                  const pending = liveBlocker.current;
-                  if (pending.state === 'blocked') {
-                    if (success) pending.proceed();
-                    else pending.reset();
-                  }
-                })()
-              }
-            >
-              保存并离开
-            </button>
-          </div>
+          <p>
+            {guard?.saving
+              ? '操作尚未完成，请留在当前页面等待结果。'
+              : '文章有未保存修改。保存正文和 CMS 信息不会自动生成音频或发布。'}
+          </p>
+          {!guard?.saving && (
+            <div className="dialog-footer">
+              <button
+                className="button secondary"
+                disabled={guard?.saving}
+                onClick={() => blocker.reset()}
+              >
+                继续编辑
+              </button>
+              <button
+                className="button secondary"
+                disabled={guard?.saving}
+                onClick={() => {
+                  liveGuard.current?.discard();
+                  blocker.proceed();
+                }}
+              >
+                放弃更改
+              </button>
+              <button
+                className="button primary"
+                disabled={guard?.saving}
+                onClick={() =>
+                  void (async () => {
+                    const success = await liveGuard.current?.save();
+                    const pending = liveBlocker.current;
+                    if (pending.state === 'blocked') {
+                      if (success) pending.proceed();
+                      else pending.reset();
+                    }
+                  })()
+                }
+              >
+                保存并离开
+              </button>
+            </div>
+          )}
         </Modal>
       )}
       {toast && (

@@ -762,3 +762,17 @@
     flex-basis: 100%;
   }
 }
+
+.cms-publish-results {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d6ddd9);
+  border-radius: 12px;
+}
+.cms-publish-results ul {
+  padding-left: 1.25rem;
+}
+.cms-publish-results li {
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
