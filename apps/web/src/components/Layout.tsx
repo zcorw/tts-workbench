@@ -24,6 +24,7 @@ export function Layout({
   onHelp: () => void;
   children: ReactNode;
 }) {
+  const cmsHref = cmsSiteHref();
   return (
     <>
       <aside className="sidebar">
@@ -52,13 +53,15 @@ export function Layout({
           <a
             id="openCmsSite"
             className="nav-item"
-            href={cmsSiteHref()}
+            href={cmsHref}
+            aria-disabled={!cmsHref}
+            title={cmsHref ? undefined : '尚未配置 CMS 站点地址，请设置 CMS_PUBLIC_ORIGIN。'}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="在新标签页打开 CMS 独立站点"
           >
             <span aria-hidden="true">↗</span>
-            内容站点（独立打开）
+            {cmsHref ? '内容站点（独立打开）' : '内容站点（尚未配置）'}
           </a>
         </nav>
         <div className="sidebar-guide">

@@ -41,6 +41,8 @@ jobs:
           npm --prefix apps/web ci
           npm --prefix apps/web run check:api
           npm --prefix apps/web run build
+          npm --prefix apps/cms ci
+          npm --prefix apps/cms run build
       - name: Build and push immutable application
         id: image
         env:

@@ -40,6 +40,7 @@ import {
   createAccountSession,
   resolveAccountSession,
 } from "@tts-workbench/account-postgres/session";
+import { createSites, listenHttp, closeHttp } from "./sites.js";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import { VocabularyService } from "./vocabulary.js";
@@ -391,6 +392,7 @@ class AuthController {
   }
 }
 export async function createApplication(config: Config) {
+  const sites = createSites(config);
   const pool = new Pool({
     connectionString: config.DATABASE_URL,
     max: 10,
@@ -461,15 +463,23 @@ export async function createApplication(config: Config) {
   server.set("trust proxy", config.TRUST_PROXY.split(",").filter(Boolean));
   server.use((req: ApiRequest, res: Response, next: NextFunction) => {
     req.requestId = randomUUID();
-    res.set({ "X-Request-Id": req.requestId, "Cache-Control": "no-store" });
+    res.set({
+      "X-Request-Id": req.requestId,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "same-origin",
+    });
     next();
   });
   server.use((req: Request, res: Response, next: NextFunction) => {
+    const expectedOrigin = sites.origin(req);
+    if (/^\/v1(?:\/|$)/i.test(req.path) && !expectedOrigin)
+      return sendError(new ApiError(503, "CMS_ORIGIN_UNCONFIGURED"), req, res);
     if (
       /^\/v1(?:\/|$)/i.test(req.path) &&
-      ((req.get("Origin") && req.get("Origin") !== config.PUBLIC_ORIGIN) ||
+      ((req.get("Origin") && req.get("Origin") !== expectedOrigin) ||
         (!["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-          req.get("Origin") !== config.PUBLIC_ORIGIN))
+          req.get("Origin") !== expectedOrigin))
     )
       return sendError(new ApiError(403, "FORBIDDEN"), req, res);
     if (
@@ -491,13 +501,7 @@ export async function createApplication(config: Config) {
         sendError(new ApiError(429, "RATE_LIMITED"), req, res),
     }),
   );
-  if (config.WEB_DIST)
-    server.use(
-      express.static(config.WEB_DIST, {
-        index: "index.html",
-        dotfiles: "deny",
-      }),
-    );
+  server.use(sites.frontend);
   const standardJson = express.json({ limit: 65536, strict: true });
   const importJson = express.json({ limit: 1048576, strict: true });
   server.use((req: Request, res: Response, next: NextFunction) => {
@@ -546,22 +550,41 @@ export async function createApplication(config: Config) {
         sendError(new ApiError(429, "RATE_LIMITED"), req, res),
     }),
   );
-  server.use("/v1/cms", createCmsRouter(cms, config.PUBLIC_ORIGIN));
+  server.use(
+    "/v1/cms",
+    createCmsRouter(cms, (req) => sites.origin(req) ?? config.PUBLIC_ORIGIN),
+  );
   server.use(
     (error: unknown, req: Request, res: Response, _next: NextFunction) =>
       sendError(error, req, res),
   );
   app.useGlobalFilters(new ErrorFilter());
   await app.init();
-  return {
-    app,
-    pool,
-    state,
-    close: async () => {
+  const cmsServer = sites.cmsServer(server);
+  let closing: Promise<void> | undefined;
+  const close = () =>
+    (closing ??= (async () => {
+      await Promise.all([closeHttp(cmsServer), closeHttp(app.getHttpServer())]);
       await app.close();
       await speech.close();
       sessions.store.close();
       await pool.end();
+    })());
+  return {
+    app,
+    pool,
+    state,
+    cmsServer,
+    listen: async () => {
+      try {
+        await app.listen(config.PORT, config.HOST);
+        if (cmsServer)
+          await listenHttp(cmsServer, config.CMS_PORT, config.HOST);
+      } catch (error) {
+        await close();
+        throw error;
+      }
     },
+    close,
   };
 }
