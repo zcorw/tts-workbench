@@ -666,7 +666,8 @@
 .cms-read-download {
   font-size: 12px;
 }
-.cms-reading-track .sr-only {
+.cms-reading-track .sr-only,
+.cms-audio-batch-panel .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -775,4 +776,169 @@
 .cms-publish-results li {
   margin-block: 0.5rem;
   overflow-wrap: anywhere;
+}
+
+.cms-audio-batch-panel {
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 1px solid #dce4ed;
+  border-radius: 14px;
+  background: #f7faff;
+  min-width: 0;
+}
+.cms-audio-batch-panel h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.cms-audio-batch-header,
+.cms-audio-batch-tools,
+.cms-audio-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+.cms-audio-batch-header {
+  justify-content: space-between;
+}
+.cms-audio-batch-tools .text-button,
+.cms-audio-batch-actions .text-button {
+  font-size: 13px;
+  min-height: 30px;
+}
+.cms-audio-batch-actions {
+  margin-top: 6px;
+}
+.cms-audio-empty {
+  margin: 6px 0 0;
+}
+.cms-audio-batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.cms-audio-batch-alert {
+  color: #a33139;
+}
+.cms-audio-progress {
+  display: block;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e3eaf4;
+  accent-color: #315fc7;
+}
+.cms-audio-progress::-webkit-progress-bar {
+  background: #e3eaf4;
+}
+.cms-audio-progress::-webkit-progress-value {
+  background: #315fc7;
+}
+.cms-audio-progress::-moz-progress-bar {
+  background: #315fc7;
+}
+.cms-audio-progress.has-issues {
+  accent-color: #a96926;
+}
+.cms-audio-progress.has-issues::-webkit-progress-value {
+  background: #a96926;
+}
+.cms-audio-progress.has-issues::-moz-progress-bar {
+  background: #a96926;
+}
+.cms-audio-batch-details {
+  border-top: 1px solid #dce4ed;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.cms-audio-batch-details[hidden] {
+  display: none;
+}
+.cms-audio-batch-items,
+.cms-audio-confirm-items {
+  padding-left: 22px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.cms-audio-batch-items li,
+.cms-audio-confirm-items li {
+  margin-block: 14px;
+  overflow-wrap: anywhere;
+}
+.cms-audio-batch-items small,
+.cms-audio-confirm-items small {
+  display: block;
+  color: #62738b;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.cms-audio-batch-items p {
+  margin: 3px 0;
+  font-size: 13px;
+}
+.cms-audio-status {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e6ecf5;
+}
+.cms-audio-status.is-running {
+  color: #1f4a9a;
+  background: #dfeaff;
+}
+.cms-audio-status.is-succeeded {
+  color: #186445;
+  background: #e4f2e9;
+}
+.cms-audio-status.is-failed,
+.cms-audio-status.is-uncertain {
+  color: #a33139;
+  background: #fdebed;
+}
+.cms-audio-uncertain {
+  padding: 12px;
+  border: 1px solid #e4b790;
+  border-radius: 8px;
+  background: #fff5e8;
+}
+#cmsAudioBatchConfirm .cms-check {
+  align-items: flex-start;
+  margin-block: 12px;
+}
+#cmsAudioBatchConfirm .cms-check input {
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+#cmsAudioBatchConfirm select,
+#cmsAudioBatchConfirm input[type='number'] {
+  max-width: 100%;
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  .cms-audio-batch-panel {
+    padding: 12px;
+  }
+  .cms-audio-batch-panel .cms-row {
+    align-items: flex-start;
+  }
+  .cms-audio-batch-panel h2 {
+    font-size: 16px;
+  }
+  .cms-audio-batch-panel .button {
+    white-space: normal;
+  }
+  .cms-audio-status {
+    margin: 5px 6px 2px 0;
+  }
+  #cmsAudioBatchConfirm .cms-two-columns {
+    display: block;
+  }
 }

@@ -8,6 +8,7 @@ import { categoryEntries } from './categoryTree';
 import type { CmsSummary, NavigationGuard } from './types';
 import { publishBatch, type PublishResult } from './publishBatch';
 import { workbenchHref } from '../links';
+import { useBatchAudio } from './BatchAudio';
 export function CmsList({
   accountId,
   onGuardChange,
@@ -18,6 +19,7 @@ export function CmsList({
   const [params, setParams] = useSearchParams(),
     client = useQueryClient(),
     { failed } = useServices();
+  const batchAudio = useBatchAudio();
   const q = params.get('q') || '',
     category = params.get('category') || '',
     tag = params.get('tag') || '',
@@ -373,6 +375,20 @@ export function CmsList({
               }}
             >
               批量上线到阅读库…
+            </button>
+            <button
+              id="cmsGenerateSelected"
+              className="button secondary"
+              disabled={
+                busy || !chosen.length || needsRefresh || !batchAudio || batchAudio.unavailable
+              }
+              onClick={() =>
+                batchAudio?.open(chosen, () => {
+                  if (alive.current) setSelected({});
+                })
+              }
+            >
+              批量生成编辑稿音频…
             </button>
             {chosen.length > 0 && (
               <button
