@@ -255,7 +255,7 @@ Gateway独立目录：build、typecheck、lint、224项单测、16项HTTP回归�
 
 完整可执行步骤已集中到 [VPS部署指南](VPS_DEPLOYMENT.md)，下文为脚本行为摘要。
 
-VPS安装Docker Engine/Compose v2、宿主Nginx，准备域名/TLS。初始支持linux/amd64；其他架构需按VPS构建目标验证。将deploy/runtime.env.example复制到VPS部署目录（默认/opt/tts-workbench）的.env.production，权限600，填入密码及秘密。DATABASE_URL主机为Compose服务名db，密码需URL编码。VPS预先用只读镜像凭据登录对应GHCR私有镜像。
+VPS安装Docker Engine/Compose v2、宿主Nginx，准备域名/TLS。初始支持linux/amd64；其他架构需按VPS构建目标验证。将deploy/runtime.env.example复制到VPS部署目录（默认/opt/tts-workbench）的.env.production，权限600，填入密码及秘密。DATABASE_URL主机为Compose服务名db，密码需URL编码。当前deploy.sh要求app为公开镜像，仅其拉取使用临时匿名Docker配置；数据库及其余Compose沿用原配置，不更改部署用户共享GHCR登录。启动、迁移及回滚禁止隐式拉取，旧镜像缺失须先准确取回，详见[VPS匿名拉取说明](VPS_DEPLOYMENT.md#53-vps-匿名拉取公开-ghcr-镜像)。
 
 GitHub配置production环境：Secrets为VPS_HOST、VPS_USER、VPS_SSH_KEY、VPS_KNOWN_HOSTS（预先可信渠道核实主机公钥，不在流程中盲目ssh-keyscan）；变量DEPLOY_DIR可覆盖默认。环境限制可部署分支及所需审核由仓库管理者设置。workflow_dispatch手动启动工作流，检查契约/真实PG测试/前端构建后，以commit标签推镜像、取得digest，经校验SSH部署；生产并发串行。这里只交付配置，未连接真实VPS、未运行GitHub远程工作流。
 
