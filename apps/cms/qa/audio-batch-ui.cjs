@@ -176,6 +176,9 @@ async function install(page, state) {
           item.status = 'cancelled';
           item.errorCode = 'CANCELLED_BEFORE_START';
         }
+      batch.status = batch.items.some((item) => ['queued', 'running'].includes(item.status))
+        ? 'running'
+        : 'completed';
       return reply(batch);
     }
     const article = /^\/v1\/cms\/articles\/([^/]+)$/.exec(p);
@@ -188,13 +191,30 @@ async function install(page, state) {
 }
 async function refresh(page) {
   await page.locator('#cmsAudioBatchRefresh').click();
-  await page.waitForFunction(() => !document.querySelector('#cmsAudioBatchRefresh').disabled);
+  await page.waitForFunction(() => !document.querySelector('#cmsAudioBatchRefresh')?.disabled);
+}
+async function openHistory(page, keyboard = false) {
+  const button = page.locator('#cmsAudioBatchHistoryOpen');
+  if (keyboard) await button.press('Enter');
+  else await button.click();
+  await page.locator('#cmsAudioBatchHistoryDialog').waitFor();
+}
+async function closeHistory(page) {
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#cmsAudioBatchHistoryDialog'));
+  await page.waitForFunction(() => document.activeElement?.id === 'cmsAudioBatchHistoryOpen');
 }
 async function open(page) {
   await page.locator('#cmsSelectPage').check();
   await page.locator('#cmsGenerateSelected').click();
   await page.locator('#cmsAudioBatchConfirm').waitFor();
   await page.waitForFunction(() => !document.querySelector('#cmsAudioVoice').disabled);
+}
+async function assertAudioPlan(page, generated, skipped) {
+  assert.match(
+    await page.locator('#cmsAudioBatchConfirm').innerText(),
+    new RegExp(`预计生成\\s*${generated}\\s*篇，跳过\\s*${skipped}\\s*篇`),
+  );
 }
 async function waitUntil(fn, message) {
   const end = Date.now() + 5000;
@@ -221,16 +241,23 @@ async function waitUntil(fn, message) {
     page.on('pageerror', (e) => errors.push(e.message));
     await install(page, state);
     await page.goto(base + '/articles');
+    await waitUntil(() => state.jobsGets > 0, 'Initial task lookup did not run');
     await page.waitForFunction(
       () =>
         document.querySelector('#cmsSelectPage') &&
-        !document.querySelector('#cmsAudioBatchRefresh')?.disabled,
+        !document.querySelector('#cmsSelectPage').disabled,
     );
     return page;
   }
   try {
     const state = fixture();
     const page = await createPage(state);
+    // Empty task history must not occupy the page with an idle progress block.
+    assert.equal(await page.locator('#cmsAudioBatchPanel').count(), 0);
+    assert.equal(await page.locator('#cmsAudioBatchProgress').count(), 0);
+    assert.equal(await page.locator('#cmsAudioBatchHistoryOpen').count(), 0);
+    assert.equal(await page.locator('#cmsAudioBatchNotice').count(), 0);
+    await page.screenshot({ path: path.join(out, '00-idle-content.png'), fullPage: false });
     // Only checked articles enter the confirmation. Opening or cancelling never creates work.
     await page.locator('.cms-selectable-items input').nth(0).check();
     await page.locator('.cms-selectable-items input').nth(1).check();
@@ -240,9 +267,44 @@ async function waitUntil(fn, message) {
       await page.locator('#cmsAudioBatchConfirm .cms-audio-confirm-items li').count(),
       2,
     );
-    assert.equal(await page.locator('#cmsAudioExistingMode').inputValue(), 'skip');
+    const skipExisting = page.getByRole('checkbox', {
+      name: '跳过已有音频文章',
+      exact: true,
+    });
+    assert.equal(await page.locator('#cmsAudioExistingMode').count(), 0);
+    assert.equal(await skipExisting.getAttribute('id'), 'cmsAudioSkipExisting');
+    assert(await skipExisting.isChecked());
+    assert(await page.locator('#cmsAudioPreserve').isChecked());
+    await assertAudioPlan(page, 1, 1);
     assert(await page.locator('#cmsAudioSubmit').isDisabled());
     assert((await page.locator('#cmsAudioBatchConfirm').innerText()).includes('不发布正文'));
+    // The exact label toggles the native checkbox and invalidates prior consent.
+    await page.locator('#cmsAudioConsent').check();
+    await page.getByText('跳过已有音频文章', { exact: true }).click();
+    assert(!(await skipExisting.isChecked()));
+    assert(!(await page.locator('#cmsAudioConsent').isChecked()));
+    assert(await page.locator('#cmsAudioSubmit').isDisabled());
+    await assertAudioPlan(page, 2, 0);
+    assert(await page.locator('#cmsAudioPreserve').isChecked());
+    await page.locator('#cmsAudioConsent').check();
+    await skipExisting.press('Space');
+    assert(await skipExisting.isChecked());
+    assert(!(await page.locator('#cmsAudioConsent').isChecked()));
+    await assertAudioPlan(page, 1, 1);
+    // Close while replacement is selected; a new opening must default to skip.
+    await skipExisting.press('Space');
+    assert(!(await skipExisting.isChecked()));
+    await page
+      .locator('#cmsAudioBatchConfirm')
+      .getByRole('button', { name: '取消', exact: true })
+      .click();
+    assert.equal(state.creates.length, 0);
+    await page.locator('#cmsGenerateSelected').click();
+    await page.waitForFunction(() => !document.querySelector('#cmsAudioVoice').disabled);
+    assert(await skipExisting.isChecked());
+    assert(!(await page.locator('#cmsAudioConsent').isChecked()));
+    await assertAudioPlan(page, 1, 1);
+    await page.screenshot({ path: path.join(out, '05-audio-skip-checkbox.png'), fullPage: false });
     await page
       .locator('#cmsAudioBatchConfirm')
       .getByRole('button', { name: '取消', exact: true })
@@ -251,7 +313,9 @@ async function waitUntil(fn, message) {
     // Explicit replacement preserves old parameters and uses chosen fallback for the new article.
     await page.locator('#cmsSelectPage').check();
     await page.locator('#cmsGenerateSelected').click();
-    await page.locator('#cmsAudioExistingMode').selectOption('replace');
+    assert(await skipExisting.isChecked());
+    await skipExisting.uncheck();
+    await assertAudioPlan(page, 3, 0);
     await page.locator('#cmsAudioSpeed').fill('1.15');
     await page.locator('#cmsAudioConsent').check();
     await page.screenshot({ path: path.join(out, '01-audio-batch-confirm.png'), fullPage: false });
@@ -263,6 +327,7 @@ async function waitUntil(fn, message) {
     });
     await page.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
     assert.equal(state.creates.length, 1);
+    assert.equal(state.creates[0].existingAudio, 'replace');
     assert.deepEqual(
       state.creates[0].items.map((i) => [i.articleId, i.voice, i.speed]),
       [
@@ -275,28 +340,42 @@ async function waitUntil(fn, message) {
     assert.equal(state.creates[0].items[0].expectedRuleVersion, 4);
     assert.equal(await page.locator('#cmsPublishSelected').count(), 1);
     assert(await page.locator('#cmsGenerateSelected').isDisabled());
+    assert(await page.locator('#cmsAudioBatchPanel').isVisible());
+    assert(await page.locator('#cmsAudioBatchHistoryOpen').isVisible());
     assert(await page.locator('#cmsAudioBatchDetails').isHidden());
     assert.equal(await page.locator('#cmsAudioBatchToggle').getAttribute('aria-expanded'), 'false');
     finish(state, state.batches[0], ['succeeded', 'failed', 'uncertain']);
     await refresh(page);
-    await page.waitForFunction(() => document.querySelector('#cmsAudioBatchProgress')?.value === 3);
-    assert(await page.locator('#cmsAudioBatchDetails').isHidden());
+    await page.waitForFunction(() => !document.querySelector('#cmsAudioBatchPanel'));
+    assert.equal(await page.locator('#cmsAudioBatchProgress').count(), 0);
+    await page.locator('#cmsAudioBatchNotice').waitFor();
+    await page.locator('#cmsAudioBatchNoticeDismiss').click();
+    assert(!(await page.locator('#cmsAudioBatchNotice').isVisible()));
+    await openHistory(page);
+    assert.equal(await page.locator('#cmsAudioBatchNotice').count(), 0);
     assert.equal(
-      await page.getByRole('progressbar', { name: '批量音频处理进度' }).getAttribute('value'),
-      '3',
+      await page.locator('#cmsAudioBatchHistoryItems [data-audio-status=failed]').count(),
+      1,
     );
-    assert((await page.locator('#cmsAudioBatchSummary').innerText()).includes('失败 1 篇'));
-    assert((await page.locator('#cmsAudioBatchSummary').innerText()).includes('结果不确定 1 篇'));
-    assert(await page.locator('#cmsAudioBatchRetry').isVisible());
-    await page.locator('#cmsAudioBatchToggle').press('Enter');
-    assert.equal(await page.locator('#cmsAudioBatchItems [data-audio-status=failed]').count(), 1);
-    assert((await page.locator('#cmsAudioBatchItems').innerText()).includes('结果可能已产生费用'));
+    assert(
+      (await page.locator('#cmsAudioBatchHistoryItems').innerText()).includes('结果可能已产生费用'),
+    );
+    assert((await page.locator('#cmsAudioBatchHistorySummary').innerText()).includes('失败 1 篇'));
+    assert(
+      (await page.locator('#cmsAudioBatchHistorySummary').innerText()).includes('结果不确定 1 篇'),
+    );
+    assert(await page.locator('#cmsAudioBatchHistoryRetry').isVisible());
+    assert.equal(await page.locator('#cmsAudioBatchPanel').count(), 0);
     await page.screenshot({ path: path.join(out, '02-audio-batch-results.png'), fullPage: false });
     // Only failed item is read afresh and retried; uncertainty and success never auto-retry.
     state.articles[1].revision = 6;
     state.articles[1].currentRuleVersion = 8;
-    await page.locator('#cmsAudioBatchRetry').click();
+    await page.locator('#cmsAudioBatchHistoryRetry').click();
     await page.locator('#cmsAudioBatchConfirm').waitFor();
+    assert.equal(await page.locator('#cmsAudioBatchHistoryDialog').count(), 0);
+    await page.waitForFunction(() =>
+      document.querySelector('#cmsAudioBatchConfirm')?.contains(document.activeElement),
+    );
     assert.equal(state.creates.length, 1);
     assert.equal(
       await page.locator('#cmsAudioBatchConfirm .cms-audio-confirm-items li').count(),
@@ -404,15 +483,7 @@ async function waitUntil(fn, message) {
     await waitUntil(() => queued.jobsGets > beforeHidden, 'Visible task did not refresh');
     await pendingPage.locator('#cmsAudioBatchToggle').click();
     assert(await pendingPage.locator('#cmsAudioBatchDetails').isHidden());
-    finish(queued, queued.batches[0], ['succeeded', 'cancelled', 'cancelled']);
-    await refresh(pendingPage);
-    await pendingPage.waitForFunction(
-      () => document.querySelector('#cmsAudioBatchProgress')?.value === 3,
-    );
-    assert(await pendingPage.locator('#cmsAudioBatchDetails').isHidden());
-    assert.equal(await pendingPage.locator('#cmsAudioBatchProgress').getAttribute('value'), '3');
-    assert((await pendingPage.locator('#cmsAudioBatchSummary').innerText()).includes('处理结束'));
-    assert(await pendingPage.locator('#cmsAudioBatchToggle').isVisible());
+    // Narrow active tasks remain compact and keyboard expansion works.
     for (const width of [320, 390]) {
       await pendingPage.setViewportSize({ width, height: 844 });
       assert(await pendingPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -427,6 +498,96 @@ async function waitUntil(fn, message) {
       await pendingPage.locator('#cmsAudioBatchToggle').press('Space');
       assert(await pendingPage.locator('#cmsAudioBatchDetails').isHidden());
     }
+    finish(queued, queued.batches[0], ['succeeded', 'cancelled', 'cancelled']);
+    await refresh(pendingPage);
+    await pendingPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchPanel'));
+    assert.equal(await pendingPage.locator('#cmsAudioBatchToggle').count(), 0);
+    await pendingPage.locator('#cmsAudioBatchNotice').waitFor();
+    for (const width of [320, 390]) {
+      await pendingPage.setViewportSize({ width, height: 844 });
+      await openHistory(pendingPage, true);
+      assert(await pendingPage.locator('#cmsAudioBatchHistoryDialog').isVisible());
+      assert.equal(
+        await pendingPage
+          .locator('#cmsAudioBatchHistoryItems [data-audio-status=cancelled]')
+          .count(),
+        2,
+      );
+      assert(await pendingPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      if (width === 390)
+        await pendingPage.screenshot({
+          path: path.join(out, '04-mobile-task-history.png'),
+          fullPage: false,
+        });
+      await closeHistory(pendingPage);
+      assert.equal(await pendingPage.locator('#cmsAudioBatchPanel').count(), 0);
+    }
+    // Re-entering a page with only old completed records shows no progress block
+    // or new completion notification. History remains available on demand.
+    await pendingPage.reload();
+    await pendingPage.locator('#cmsAudioBatchHistoryOpen').waitFor();
+    assert.equal(await pendingPage.locator('#cmsAudioBatchPanel').count(), 0);
+    assert.equal(await pendingPage.locator('#cmsAudioBatchNotice').count(), 0);
+    await openHistory(pendingPage);
+    assert.equal(await pendingPage.locator('#cmsAudioBatchHistoryItems li').count(), 3);
+    await closeHistory(pendingPage);
+
+    // An entirely successful task disappears and a later explicit batch can
+    // start again. A create whose items are all skipped also stays inactive.
+    const successful = fixture();
+    successful.batches = [makeBatch(successful, { ...input, requestId: id(801) })];
+    const successfulPage = await createPage(successful);
+    await successfulPage.locator('#cmsAudioBatchPanel').waitFor();
+    finish(successful, successful.batches[0], ['succeeded', 'succeeded', 'succeeded']);
+    await refresh(successfulPage);
+    await successfulPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchPanel'));
+    await successfulPage.locator('#cmsAudioBatchNotice').waitFor();
+    await successfulPage.reload();
+    await successfulPage.locator('#cmsAudioBatchHistoryOpen').waitFor();
+    assert.equal(await successfulPage.locator('#cmsAudioBatchNotice').count(), 0);
+    await openHistory(successfulPage);
+    assert.equal(
+      await successfulPage
+        .locator('#cmsAudioBatchHistoryItems [data-audio-status=succeeded]')
+        .count(),
+      3,
+    );
+    await closeHistory(successfulPage);
+    await open(successfulPage);
+    await successfulPage.locator('#cmsAudioConsent').check();
+    await successfulPage.locator('#cmsAudioSubmit').click();
+    await successfulPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
+    assert.equal(successful.creates.length, 1);
+    assert(successful.batches[0].items.every((item) => item.status === 'skipped'));
+    assert.equal(await successfulPage.locator('#cmsAudioBatchPanel').count(), 0);
+    await successfulPage.locator('#cmsAudioBatchNotice').waitFor();
+    await openHistory(successfulPage);
+    await successfulPage.locator('#cmsAudioBatchHistory').selectOption(successful.batches[1].id);
+    assert.equal(
+      await successfulPage
+        .locator('#cmsAudioBatchHistoryItems [data-audio-status=succeeded]')
+        .count(),
+      3,
+    );
+    await closeHistory(successfulPage);
+
+    // Stopping an all-queued task is terminal too; it remains in history only.
+    const cancelled = fixture();
+    cancelled.batches = [makeBatch(cancelled, { ...input, requestId: id(802) })];
+    const cancelledPage = await createPage(cancelled);
+    await cancelledPage.locator('#cmsAudioBatchCancel').click();
+    await cancelledPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchPanel'));
+    assert.equal(cancelled.creates.length, 0);
+    assert(cancelled.batches[0].items.every((item) => item.status === 'cancelled'));
+    await cancelledPage.locator('#cmsAudioBatchNotice').waitFor();
+    await openHistory(cancelledPage);
+    assert.equal(
+      await cancelledPage
+        .locator('#cmsAudioBatchHistoryItems [data-audio-status=cancelled]')
+        .count(),
+      3,
+    );
+    await closeHistory(cancelledPage);
     // Lost create responses restore persisted work without automatically charging another batch.
     const uncertain = fixture();
     uncertain.abortNext = 'saved';
@@ -448,6 +609,8 @@ async function waitUntil(fn, message) {
     await unsavedPage.locator('#cmsAudioSubmit').click();
     await unsavedPage.locator('#cmsAudioRecover').waitFor();
     assert.equal(unsaved.creates.length, 1);
+    assert.equal(await unsavedPage.locator('#cmsAudioBatchNotice').count(), 0);
+    assert.equal(await unsavedPage.locator('#cmsAudioBatchPanel').count(), 0);
     await unsavedPage.locator('#cmsAudioRecover').click();
     await unsavedPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
     assert.equal(unsaved.creates.length, 2);
@@ -516,12 +679,90 @@ async function waitUntil(fn, message) {
     await databasePage.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
     assert.equal(databaseUnknown.creates.length, 2);
     assert.deepEqual(databaseUnknown.creates[1], databaseUnknown.creates[0]);
+    // A failed task lookup is an explicit error, not an idle success state.
+    const unavailable = fixture();
+    unavailable.rejectListNext = { code: 'DEPENDENCY_UNAVAILABLE', status: 503 };
+    const unavailablePage = await createPage(unavailable);
+    await unavailablePage.getByRole('alert').filter({ hasText: '无法读取任务状态' }).waitFor();
+    assert.equal(await unavailablePage.locator('#cmsAudioBatchPanel').count(), 0);
+    assert.equal(await unavailablePage.locator('#cmsAudioBatchNotice').count(), 0);
+    await unavailablePage.locator('#cmsSelectPage').check();
+    assert(await unavailablePage.locator('#cmsGenerateSelected').isDisabled());
+    // Checkbox policy and request scope agree: unchecked means all selected
+    // articles, never an implicit expansion to the other articles on the page.
+    const checkboxState = fixture();
+    const checkboxPage = await createPage(checkboxState);
+    await checkboxPage.locator('.cms-selectable-items input').nth(0).check();
+    await checkboxPage.locator('.cms-selectable-items input').nth(1).check();
+    await checkboxPage.locator('#cmsGenerateSelected').click();
+    await checkboxPage.waitForFunction(() => !document.querySelector('#cmsAudioVoice').disabled);
+    assert(await checkboxPage.locator('#cmsAudioSkipExisting').isChecked());
+    await assertAudioPlan(checkboxPage, 1, 1);
+    await checkboxPage.locator('#cmsAudioConsent').check();
+    await checkboxPage.locator('#cmsAudioSubmit').click();
+    await checkboxPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
+    assert.equal(checkboxState.creates.length, 1);
+    assert.equal(checkboxState.creates[0].existingAudio, 'skip');
+    assert.deepEqual(
+      checkboxState.creates[0].items.map((item) => item.articleId),
+      [id(1), id(2)],
+    );
+    assert.deepEqual(
+      checkboxState.batches[0].items.map((item) => item.status),
+      ['skipped', 'queued'],
+    );
+    finish(checkboxState, checkboxState.batches[0], ['skipped', 'succeeded']);
+    await refresh(checkboxPage);
+    await checkboxPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchPanel'));
+    await checkboxPage.locator('.cms-selectable-items input').nth(0).check();
+    await checkboxPage.locator('#cmsGenerateSelected').click();
+    await checkboxPage.waitForFunction(() => !document.querySelector('#cmsAudioVoice').disabled);
+    assert(await checkboxPage.locator('#cmsAudioSkipExisting').isChecked());
+    await checkboxPage.getByText('跳过已有音频文章', { exact: true }).click();
+    await assertAudioPlan(checkboxPage, 1, 0);
+    await checkboxPage.locator('#cmsAudioConsent').check();
+    await checkboxPage.locator('#cmsAudioSubmit').click();
+    await checkboxPage.waitForFunction(() => !document.querySelector('#cmsAudioBatchConfirm'));
+    assert.equal(checkboxState.creates.length, 2);
+    assert.equal(checkboxState.creates[1].existingAudio, 'replace');
+    assert.deepEqual(
+      checkboxState.creates[1].items.map((item) => item.articleId),
+      [id(1)],
+    );
+    assert.equal(checkboxState.creates[1].items[0].voice, 'ja-saved');
+    assert.equal(checkboxState.creates[1].items[0].speed, 1.25);
+    assert.notEqual(checkboxState.creates[1].requestId, checkboxState.creates[0].requestId);
     // Narrow views keep both the selection toolbar and the confirmation usable.
     const mobile = await createPage(fixture());
     for (const width of [320, 390]) {
       await mobile.setViewportSize({ width, height: 844 });
       await open(mobile);
+      const mobileSkip = mobile.getByRole('checkbox', {
+        name: '跳过已有音频文章',
+        exact: true,
+      });
+      assert(await mobileSkip.isChecked());
+      assert.equal(await mobile.locator('#cmsAudioExistingMode').count(), 0);
+      await assertAudioPlan(mobile, 1, 2);
       assert(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await mobile.locator('#cmsAudioConsent').check();
+      await mobile.getByText('跳过已有音频文章', { exact: true }).click();
+      assert(!(await mobileSkip.isChecked()));
+      assert(!(await mobile.locator('#cmsAudioConsent').isChecked()));
+      await assertAudioPlan(mobile, 3, 0);
+      await mobileSkip.press('Space');
+      assert(await mobileSkip.isChecked());
+      assert(!(await mobile.locator('#cmsAudioConsent').isChecked()));
+      await assertAudioPlan(mobile, 1, 2);
+      await mobileSkip.scrollIntoViewIfNeeded();
+      const checkboxBox = await mobileSkip.boundingBox();
+      assert(checkboxBox && checkboxBox.width > 0 && checkboxBox.x >= 0);
+      assert(checkboxBox.x + checkboxBox.width <= width);
+      if (width === 390)
+        await mobile.screenshot({
+          path: path.join(out, '06-mobile-audio-skip-checkbox.png'),
+          fullPage: false,
+        });
       await mobile.locator('#cmsAudioConsent').check();
       assert(!(await mobile.locator('#cmsAudioSubmit').isDisabled()));
       if (width === 390)
@@ -537,7 +778,7 @@ async function waitUntil(fn, message) {
     }
     assert.deepEqual(errors, []);
     console.log(
-      'PASS UI: compact default progress, keyboard expand/collapse, preserved collapsed state after refresh/cancel/completion, visible failure/uncertainty counts, 320/390 compact/details layouts; selected scope, skip/replace consent, version payloads, duplicate lock, failed-only fresh retry, conflict confirmation, uncertainty recovery, navigation/reload, cancel queued, hidden/visible polling; 0 page errors',
+      'PASS UI: idle hides progress, queued/running compact panel, completed/failed/cancelled/skipped remove panel, dismissible terminal notice, on-demand history and failed-only fresh retry, history after reload and a new explicit batch, keyboard/320/390 active and history layouts; skip-existing checkbox defaults/reopen/label/Space/consent reset/plan counts and selected-only skip/replace payloads, version payloads, duplicate lock, conflict confirmation, uncertainty/error recovery without fake success, navigation/reload, cancel queued, hidden/visible polling; 0 page errors',
     );
   } finally {
     for (const context of contexts) await context.close();

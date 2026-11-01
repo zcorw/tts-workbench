@@ -786,6 +786,25 @@
   background: #f7faff;
   min-width: 0;
 }
+.cms-editor-inputs {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.cms-advanced {
+  padding: 12px 14px;
+  margin: 12px 0;
+  border: 1px solid #dce4ed;
+  border-radius: 10px;
+}
+.cms-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.cms-advanced[open] summary {
+  margin-bottom: 12px;
+}
 .cms-audio-batch-panel h2 {
   margin: 0;
   font-size: 16px;
@@ -809,8 +828,28 @@
 .cms-audio-batch-actions {
   margin-top: 6px;
 }
-.cms-audio-empty {
-  margin: 6px 0 0;
+.cms-audio-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f7faff;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.cms-audio-notice p {
+  margin: 0;
+}
+.cms-audio-notice .text-button {
+  font-size: 13px;
+  min-height: 30px;
+}
+#cmsAudioBatchHistoryDialog .cms-audio-batch-panel {
+  margin-bottom: 0;
 }
 .cms-audio-batch-summary {
   display: flex;

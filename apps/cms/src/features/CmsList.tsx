@@ -38,6 +38,7 @@ export function CmsList({
     [allowTextOnly, setAllowTextOnly] = useState(false),
     [publishResults, setPublishResults] = useState<PublishResult[]>([]);
   const publishLock = useRef(false);
+  const moveLock = useRef(false);
   useEffect(() => {
     if (busy)
       onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
@@ -85,9 +86,12 @@ export function CmsList({
     category === 'uncategorized'
       ? '未分类'
       : entries.find((e) => e.category.id === category)?.path.join(' / ') || '全部文章';
-  const targetName = target
-    ? entries.find((e) => e.category.id === target)?.path.join(' / ') || '已删除的分类'
-    : '未分类';
+  const validTarget = target === 'uncategorized' || entries.some((e) => e.category.id === target);
+  const targetName = !target
+    ? '请选择目标分类'
+    : target === 'uncategorized'
+      ? '未分类'
+      : entries.find((e) => e.category.id === target)?.path.join(' / ') || '已删除的分类';
   const all = !!items.length && items.every((a) => !!selected[a.id]);
   const filter = (name: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -125,10 +129,22 @@ export function CmsList({
     }
   };
   const move = async () => {
+    if (
+      moveLock.current ||
+      busy ||
+      !confirm ||
+      !chosen.length ||
+      !validTarget ||
+      taxonomy.isPending ||
+      taxonomy.error
+    )
+      return;
+    moveLock.current = true;
+    onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
     setBusy(true);
     setError('');
     try {
-      await cmsHttp.moveCategory(target || null, chosen);
+      await cmsHttp.moveCategory(target === 'uncategorized' ? null : target, chosen);
       if (!alive.current) return;
       setConfirm(false);
       setSelected({});
@@ -148,6 +164,7 @@ export function CmsList({
         failed(e);
       }
     } finally {
+      moveLock.current = false;
       if (alive.current) setBusy(false);
     }
   };
@@ -338,28 +355,16 @@ export function CmsList({
               选择本页
             </label>
             <span role="status">已选 {chosen.length} 篇</span>
-            <label>
-              移动到
-              <select
-                id="cmsMoveCategory"
-                aria-label="移动到分类"
-                value={target}
-                disabled={busy}
-                onChange={(e) => setTarget(e.target.value)}
-              >
-                <option value="">未分类</option>
-                {entries.map(({ category: c, path }) => (
-                  <option key={c.id} value={c.id}>
-                    {path.join(' / ')}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               id="cmsMoveSelected"
               className="button secondary"
-              disabled={busy || !chosen.length || needsRefresh || taxonomy.isPending}
-              onClick={() => setConfirm(true)}
+              disabled={
+                busy || !chosen.length || needsRefresh || taxonomy.isPending || !!taxonomy.error
+              }
+              onClick={() => {
+                setTarget('');
+                setConfirm(true);
+              }}
             >
               移动所选文章…
             </button>
@@ -390,6 +395,15 @@ export function CmsList({
             >
               批量生成编辑稿音频…
             </button>
+            {batchAudio?.hasHistory && (
+              <button
+                id="cmsAudioBatchHistoryOpen"
+                className="text-button"
+                onClick={() => batchAudio.openHistory()}
+              >
+                音频任务记录
+              </button>
+            )}
             {chosen.length > 0 && (
               <button
                 className="text-button"
@@ -591,10 +605,28 @@ export function CmsList({
           busy={busy}
           onClose={() => setConfirm(false)}
         >
-          <p>
-            将 {chosen.length} 篇文章统一移入“{targetName}
-            ”。按当前载入版本检查，任一文章已变化时本次全部取消。
-          </p>
+          <p>本次选择 {chosen.length} 篇文章。请选择目标分类，确认后才会移动。</p>
+          <label className="cms-field">
+            目标分类
+            <select
+              id="cmsMoveCategory"
+              aria-label="目标分类"
+              value={target}
+              disabled={busy || taxonomy.isPending || !!taxonomy.error}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value="" disabled>
+                请选择目标分类…
+              </option>
+              <option value="uncategorized">未分类</option>
+              {entries.map(({ category: c, path }) => (
+                <option key={c.id} value={c.id}>
+                  {path.join(' / ')}
+                </option>
+              ))}
+            </select>
+          </label>
+          {target && <p>目标：{targetName}。按当前载入版本检查，任一文章已变化时本次全部取消。</p>}
           <p>不会改动正文、读法、音频或已发布版本。切换分类或页面会清除本页选择。</p>
           <ul className="cms-move-titles" aria-label="本次移动的文章">
             {chosen.map((article) => (
@@ -608,7 +640,9 @@ export function CmsList({
             <button
               id="cmsMoveCategoryConfirmSubmit"
               className="button primary"
-              disabled={busy}
+              disabled={
+                busy || !chosen.length || !validTarget || taxonomy.isPending || !!taxonomy.error
+              }
               onClick={() => void move()}
             >
               {busy ? '正在移动…' : '确认移动'}

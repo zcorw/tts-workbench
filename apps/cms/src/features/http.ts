@@ -130,7 +130,8 @@ export const cmsHttp = {
       )}`,
     ),
   article: (id: string) => json<CmsArticle>(path(id)),
-  create: (draft: CmsDraft) => write<CmsArticle>(`${root}/articles`, 'POST', bodyOf(draft)),
+  create: (draft: CmsDraft, requestId: string) =>
+    write<CmsArticle>(`${root}/articles`, 'POST', { ...bodyOf(draft), requestId }),
   save: (id: string, draft: CmsDraft, previous: CmsArticle) =>
     write<CmsArticle>(path(id), 'PATCH', {
       ...bodyOf(draft),

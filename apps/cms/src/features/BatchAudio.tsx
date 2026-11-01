@@ -29,6 +29,8 @@ import {
 interface BatchAudioContextValue {
   open: (items: CmsSummary[], onCreated?: () => void) => void;
   unavailable: boolean;
+  hasHistory: boolean;
+  openHistory: () => void;
 }
 const BatchAudioContext = createContext<BatchAudioContextValue | null>(null);
 export const useBatchAudio = () => useContext(BatchAudioContext);
@@ -63,6 +65,9 @@ export function BatchAudioProvider({
   const [pending, setPending] = useState<AudioBatchInput | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [finishedId, setFinishedId] = useState('');
+  const previousActive = useRef('');
   const lock = useRef(false),
     alive = useRef(true);
   const pendingRef = useRef<AudioBatchInput | null>(null);
@@ -115,7 +120,21 @@ export function BatchAudioProvider({
     void client.invalidateQueries({ queryKey: ['cms', accountId, 'article'] });
   }, [batches.data, client, accountId]);
   const active = records.find((b) => b.status !== 'completed');
-  const selected = records.find((b) => b.id === selectedId) || active || records[0];
+  const selected = historyOpen
+    ? records.find((b) => b.id === selectedId) || active || records[0]
+    : active;
+  const finished = records.find((b) => b.id === finishedId && b.status === 'completed');
+  useEffect(() => {
+    const previous = previousActive.current;
+    if (previous && records.some((b) => b.id === previous && b.status === 'completed'))
+      setFinishedId(previous);
+    previousActive.current = active?.id || '';
+  }, [records, active?.id]);
+  useEffect(() => setExpanded(false), [active?.id]);
+  const showHistory = (id = active?.id || records[0]?.id || '') => {
+    setSelectedId(id);
+    setHistoryOpen(true);
+  };
   const fallbackVoice = voice || voices.data?.[0]?.id || '';
   const options = {
     existingAudio,
@@ -136,6 +155,7 @@ export function BatchAudioProvider({
 
   const open = useCallback((items: CmsSummary[], onCreated?: () => void) => {
     if (!items.length || items.length > 20 || lock.current || pendingRef.current) return;
+    setHistoryOpen(false);
     setDraft({ items: structuredClone(items), onCreated });
     setExistingAudio('skip');
     setPreserveExisting(true);
@@ -153,6 +173,7 @@ export function BatchAudioProvider({
       items: [batch, ...(previous?.items ?? []).filter((b) => b.id !== batch.id)].slice(0, 5),
     }));
     setSelectedId(batch.id);
+    setFinishedId(batch.status === 'completed' ? batch.id : '');
     if (batch.id !== selected?.id) setExpanded(false);
     draft?.onCreated?.();
     setDraft(null);
@@ -291,49 +312,189 @@ export function BatchAudioProvider({
   const uncertain = selected?.items.filter((item) => item.status === 'uncertain').length ?? 0;
   const batchSkipped = selected?.items.filter((item) => item.status === 'skipped').length ?? 0;
   const cancelled = selected?.items.filter((item) => item.status === 'cancelled').length ?? 0;
+  const taskPanel = (
+    <section
+      className="cms-audio-batch-panel"
+      id={historyOpen ? 'cmsAudioBatchHistoryPanel' : 'cmsAudioBatchPanel'}
+      aria-labelledby="cmsAudioBatchHeading"
+    >
+      <div className="cms-audio-batch-header">
+        <h2 id="cmsAudioBatchHeading">批量音频任务</h2>
+        <div className="cms-audio-batch-tools">
+          {selected && !historyOpen && (
+            <button
+              className="text-button"
+              id="cmsAudioBatchToggle"
+              aria-expanded={expanded}
+              aria-controls="cmsAudioBatchDetails"
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? '收起详情' : '查看详情'}
+            </button>
+          )}
+          <button
+            className="text-button"
+            id="cmsAudioBatchRefresh"
+            onClick={() => void batches.refetch()}
+            disabled={batches.isFetching}
+          >
+            刷新
+          </button>
+        </div>
+      </div>
+      <ErrorNotice
+        message={error || (batches.error ? `无法读取任务状态：${messageOf(batches.error)}` : '')}
+      />
+      {selected && progress && (
+        <>
+          <p
+            className="cms-audio-batch-summary"
+            id={historyOpen ? 'cmsAudioBatchHistorySummary' : 'cmsAudioBatchSummary'}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <strong>
+              {selected.status === 'completed'
+                ? '处理结束'
+                : selected.status === 'queued'
+                  ? '排队中'
+                  : '处理中'}
+            </strong>
+            <span>
+              已处理 {progress.settled} / {progress.total} 篇 · 成功 {progress.succeeded} 篇
+            </span>
+            {progress.failed > 0 && (
+              <strong className="cms-audio-batch-alert">失败 {progress.failed} 篇</strong>
+            )}
+            {uncertain > 0 && (
+              <strong className="cms-audio-batch-alert">
+                结果不确定 {uncertain} 篇（可能已产生费用）
+              </strong>
+            )}
+            {batchSkipped > 0 && <span>跳过 {batchSkipped} 篇</span>}
+            {cancelled > 0 && <span>已停止 {cancelled} 篇</span>}
+          </p>
+          <progress
+            id={historyOpen ? 'cmsAudioBatchHistoryProgress' : 'cmsAudioBatchProgress'}
+            className={`cms-audio-progress${progress.failed || uncertain ? ' has-issues' : ''}`}
+            max={progress.total || 1}
+            value={progress.settled}
+            aria-label="批量音频处理进度"
+            aria-valuetext={`已处理 ${progress.settled}/${progress.total} 篇，成功 ${progress.succeeded} 篇，失败 ${progress.failed} 篇，结果不确定 ${uncertain} 篇，跳过 ${batchSkipped} 篇，已停止 ${cancelled} 篇`}
+          />
+          {((selected.status !== 'completed' && progress.queued > 0) ||
+            (selected.status === 'completed' && failedAudioIds(selected).length > 0)) && (
+            <div className="cms-audio-batch-actions">
+              {selected.status !== 'completed' && progress.queued > 0 && (
+                <button
+                  className="text-button"
+                  id="cmsAudioBatchCancel"
+                  disabled={cancelling}
+                  aria-describedby="cmsAudioCancelNote"
+                  onClick={() => void cancel(selected)}
+                >
+                  停止未开始的 {progress.queued} 篇
+                </button>
+              )}
+              {selected.status === 'completed' && failedAudioIds(selected).length > 0 && (
+                <button
+                  className="text-button"
+                  id={historyOpen ? 'cmsAudioBatchHistoryRetry' : 'cmsAudioBatchRetry'}
+                  disabled={readingRetry || !!active || busy || !!pending}
+                  onClick={() => void retryFailed(selected)}
+                >
+                  重新确认失败项…
+                </button>
+              )}
+            </div>
+          )}
+          <span id="cmsAudioCancelNote" className="sr-only">
+            只取消排队项；正在生成的文章继续处理，已经产生的费用不能撤回。
+          </span>
+          <div
+            id="cmsAudioBatchDetails"
+            className="cms-audio-batch-details"
+            hidden={!historyOpen && !expanded}
+          >
+            <p className="small-note">
+              服务端逐篇处理；可切换页面或刷新后回来查看。只更新编辑稿音频，阅读库固定版本保持原样。
+            </p>
+            {historyOpen && records.length > 1 && (
+              <label className="cms-field">
+                最近任务
+                <select
+                  id="cmsAudioBatchHistory"
+                  value={selected.id}
+                  onChange={(event) => setSelectedId(event.target.value)}
+                >
+                  {records.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {new Date(batch.createdAt).toLocaleString()} · {batch.items.length} 篇 ·{' '}
+                      {batch.status === 'completed' ? '已结束' : '处理中'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <ol
+              className="cms-audio-batch-items"
+              id={historyOpen ? 'cmsAudioBatchHistoryItems' : 'cmsAudioBatchItems'}
+            >
+              {selected.items.map((item) => (
+                <li key={item.articleId} data-audio-status={item.status}>
+                  <Link to={`/articles/${item.articleId}`} onClick={() => setHistoryOpen(false)}>
+                    {item.title}
+                  </Link>
+                  <span className={`cms-audio-status is-${item.status}`}>
+                    {audioStatus[item.status]}
+                  </span>
+                  <small>
+                    正文 v{item.expectedRevision} · 规则 v{item.expectedRuleVersion} · {item.voice}{' '}
+                    / {item.speed.toFixed(2)}×
+                  </small>
+                  {item.errorCode && <p>{audioReason(item.errorCode)}</p>}
+                  {item.status === 'uncertain' && (
+                    <p>结果可能已产生费用；请打开文章核对音频，不自动重试此项。</p>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {selected.status !== 'completed' && (
+              <p className="small-note">
+                停止仅取消未开始项。正在生成的文章继续处理，已经产生的费用不能撤回。
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
   return (
     <BatchAudioContext.Provider
       value={{
         open,
+        hasHistory: records.length > 0,
+        openHistory: () => showHistory(),
         unavailable:
           !!active || batches.isPending || !!batches.error || busy || readingRetry || !!pending,
       }}
     >
       {children(
-        <section
-          className="cms-audio-batch-panel"
-          id="cmsAudioBatchPanel"
-          aria-labelledby="cmsAudioBatchHeading"
-        >
-          <div className="cms-audio-batch-header">
-            <h2 id="cmsAudioBatchHeading">批量音频任务</h2>
-            <div className="cms-audio-batch-tools">
-              {selected && (
-                <button
-                  className="text-button"
-                  id="cmsAudioBatchToggle"
-                  aria-expanded={expanded}
-                  aria-controls="cmsAudioBatchDetails"
-                  onClick={() => setExpanded((value) => !value)}
-                >
-                  {expanded ? '收起详情' : '查看详情'}
-                </button>
-              )}
+        <>
+          {active && !historyOpen && taskPanel}
+          {!active && !historyOpen && (error || batches.error) && (
+            <div className="cms-audio-notice">
+              <ErrorNotice message={error || `无法读取任务状态：${messageOf(batches.error)}`} />
               <button
                 className="text-button"
-                id="cmsAudioBatchRefresh"
-                onClick={() => void batches.refetch()}
                 disabled={batches.isFetching}
+                onClick={() => void batches.refetch()}
               >
-                刷新
+                重新读取任务
               </button>
             </div>
-          </div>
-          <ErrorNotice
-            message={
-              error || (batches.error ? `无法读取任务状态：${messageOf(batches.error)}` : '')
-            }
-          />
+          )}
           {pending && !draft && (
             <div className="cms-audio-uncertain">
               <p>有一次提交结果尚未确认；不会创建新批次，请核对并恢复同一提交。</p>
@@ -342,124 +503,63 @@ export function BatchAudioProvider({
               </button>
             </div>
           )}
-          {!selected && !batches.isPending && !batches.error && (
-            <p className="small-note cms-audio-empty">暂无任务，在“内容”页选择文章后开始。</p>
-          )}
-          {selected && progress && (
-            <>
-              <p
-                className="cms-audio-batch-summary"
-                id="cmsAudioBatchSummary"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                <strong>
-                  {selected.status === 'completed'
-                    ? '处理结束'
-                    : selected.status === 'queued'
-                      ? '排队中'
-                      : '处理中'}
-                </strong>
-                <span>
-                  已处理 {progress.settled} / {progress.total} 篇 · 成功 {progress.succeeded} 篇
-                </span>
-                {progress.failed > 0 && (
-                  <strong className="cms-audio-batch-alert">失败 {progress.failed} 篇</strong>
-                )}
-                {uncertain > 0 && (
+
+          {!active && finished && !historyOpen && (
+            <div className="cms-audio-notice" id="cmsAudioBatchNotice">
+              <p role="status" aria-live="polite">
+                批量音频已结束：成功 {audioProgress(finished).succeeded} 篇
+                {audioProgress(finished).failed > 0 && (
                   <strong className="cms-audio-batch-alert">
-                    结果不确定 {uncertain} 篇（可能已产生费用）
+                    {' '}
+                    · 失败 {audioProgress(finished).failed} 篇
                   </strong>
                 )}
-                {batchSkipped > 0 && <span>跳过 {batchSkipped} 篇</span>}
-                {cancelled > 0 && <span>已停止 {cancelled} 篇</span>}
+                {finished.items.some((item) => item.status === 'uncertain') && (
+                  <strong className="cms-audio-batch-alert">
+                    {' '}
+                    · 有结果不确定项，可能已产生费用，请先核对音频
+                  </strong>
+                )}
+                {finished.items.some((item) => item.status === 'skipped') && (
+                  <span>
+                    {' '}
+                    · 跳过 {finished.items.filter((item) => item.status === 'skipped').length} 篇
+                  </span>
+                )}
+                {finished.items.some((item) => item.status === 'cancelled') && (
+                  <span>
+                    {' '}
+                    · 已停止 {
+                      finished.items.filter((item) => item.status === 'cancelled').length
+                    }{' '}
+                    篇
+                  </span>
+                )}
               </p>
-              <progress
-                id="cmsAudioBatchProgress"
-                className={`cms-audio-progress${progress.failed || uncertain ? ' has-issues' : ''}`}
-                max={progress.total || 1}
-                value={progress.settled}
-                aria-label="批量音频处理进度"
-                aria-valuetext={`已处理 ${progress.settled}/${progress.total} 篇，成功 ${progress.succeeded} 篇，失败 ${progress.failed} 篇，结果不确定 ${uncertain} 篇，跳过 ${batchSkipped} 篇，已停止 ${cancelled} 篇`}
-              />
-              {((selected.status !== 'completed' && progress.queued > 0) ||
-                (selected.status === 'completed' && failedAudioIds(selected).length > 0)) && (
-                <div className="cms-audio-batch-actions">
-                  {selected.status !== 'completed' && progress.queued > 0 && (
-                    <button
-                      className="text-button"
-                      id="cmsAudioBatchCancel"
-                      disabled={cancelling}
-                      aria-describedby="cmsAudioCancelNote"
-                      onClick={() => void cancel(selected)}
-                    >
-                      停止未开始的 {progress.queued} 篇
-                    </button>
-                  )}
-                  {selected.status === 'completed' && failedAudioIds(selected).length > 0 && (
-                    <button
-                      className="text-button"
-                      id="cmsAudioBatchRetry"
-                      disabled={readingRetry || !!active || busy || !!pending}
-                      onClick={() => void retryFailed(selected)}
-                    >
-                      重新确认失败项…
-                    </button>
-                  )}
-                </div>
-              )}
-              <span id="cmsAudioCancelNote" className="sr-only">
-                只取消排队项；正在生成的文章继续处理，已经产生的费用不能撤回。
-              </span>
-              <div id="cmsAudioBatchDetails" className="cms-audio-batch-details" hidden={!expanded}>
-                <p className="small-note">
-                  服务端逐篇处理；可切换页面或刷新后回来查看。只更新编辑稿音频，阅读库固定版本保持原样。
-                </p>
-                {records.length > 1 && (
-                  <label className="cms-field">
-                    最近任务
-                    <select
-                      id="cmsAudioBatchHistory"
-                      value={selected.id}
-                      onChange={(event) => setSelectedId(event.target.value)}
-                    >
-                      {records.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          {new Date(batch.createdAt).toLocaleString()} · {batch.items.length} 篇 ·{' '}
-                          {batch.status === 'completed' ? '已结束' : '处理中'}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <ol className="cms-audio-batch-items" id="cmsAudioBatchItems">
-                  {selected.items.map((item) => (
-                    <li key={item.articleId} data-audio-status={item.status}>
-                      <Link to={`/articles/${item.articleId}`}>{item.title}</Link>
-                      <span className={`cms-audio-status is-${item.status}`}>
-                        {audioStatus[item.status]}
-                      </span>
-                      <small>
-                        正文 v{item.expectedRevision} · 规则 v{item.expectedRuleVersion} ·{' '}
-                        {item.voice} / {item.speed.toFixed(2)}×
-                      </small>
-                      {item.errorCode && <p>{audioReason(item.errorCode)}</p>}
-                      {item.status === 'uncertain' && (
-                        <p>结果可能已产生费用；请打开文章核对音频，不自动重试此项。</p>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-                {selected.status !== 'completed' && (
-                  <p className="small-note">
-                    停止仅取消未开始项。正在生成的文章继续处理，已经产生的费用不能撤回。
-                  </p>
-                )}
+              <div className="cms-audio-batch-tools">
+                <button className="text-button" onClick={() => showHistory(finished.id)}>
+                  查看结果{failedAudioIds(finished).length > 0 ? ' / 重试失败项' : ''}
+                </button>
+                <button
+                  id="cmsAudioBatchNoticeDismiss"
+                  className="text-button"
+                  onClick={() => setFinishedId('')}
+                >
+                  关闭通知
+                </button>
               </div>
-            </>
+            </div>
           )}
-        </section>,
+          {historyOpen && selected && (
+            <Modal
+              id="cmsAudioBatchHistoryDialog"
+              title="音频任务记录"
+              onClose={() => setHistoryOpen(false)}
+            >
+              {taskPanel}
+            </Modal>
+          )}
+        </>,
       )}
       {draft && (
         <Modal
@@ -473,21 +573,6 @@ export function BatchAudioProvider({
             篇已保存编辑稿。不保存本地未保存输入，不发布正文，也不更改阅读库已发布音频。
           </p>
           <div className="cms-two-columns">
-            <label className="cms-field">
-              已有音频
-              <select
-                id="cmsAudioExistingMode"
-                value={existingAudio}
-                disabled={busy || !!pending}
-                onChange={(e) => {
-                  setExistingAudio(e.target.value as 'skip' | 'replace');
-                  setConsent(false);
-                }}
-              >
-                <option value="skip">跳过所有已有音频（包括过期音频）</option>
-                <option value="replace">明确重新生成已有音频</option>
-              </select>
-            </label>
             <label className="cms-field">
               无音频或统一设置的声音
               <select
@@ -523,6 +608,23 @@ export function BatchAudioProvider({
               />
             </label>
           </div>
+          <label className="cms-check">
+            <input
+              id="cmsAudioSkipExisting"
+              type="checkbox"
+              checked={existingAudio === 'skip'}
+              disabled={busy || !!pending}
+              aria-describedby="cmsAudioSkipExistingNote"
+              onChange={(e) => {
+                setExistingAudio(e.target.checked ? 'skip' : 'replace');
+                setConsent(false);
+              }}
+            />
+            跳过已有音频文章
+          </label>
+          <p id="cmsAudioSkipExistingNote" className="small-note">
+            默认跳过本次所选文章中所有已有音频（包括过期音频）；取消勾选则重新生成本次所选的全部文章，不包含未选文章。仍需在下方确认额度消耗及成功后替换旧音频。
+          </p>
           <label className="cms-check">
             <input
               id="cmsAudioPreserve"
