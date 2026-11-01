@@ -517,7 +517,10 @@ export interface paths {
          */
         get: operations["cmsArticles"];
         put?: never;
-        /** Create article and CMS metadata atomically */
+        /**
+         * Create article and CMS metadata atomically
+         * @description cms.slug may be omitted or blank. Allocate a stable article-<first 12 article UUID hex> slug, with bounded collision suffixes; changing a title never regenerates that slug. A nonblank custom slug is trimmed and must satisfy the existing lowercase ASCII rule. Optional requestId is the article UUID and owner-scoped create idempotency identity. Under the owner lock, an identical normalized replay returns the original detail with201 only while both article.revision and cms.revision are1, the initial created state. In that state, omitted or blank slug means the article's already saved slug, not a new allocation. Any later version evolution, including edits, publishing or changed-then-restored fields, is409 CREATE_REQUEST_CONFLICT even when the current writable fields match. A different payload or an identity owned by another account is also409, never an update or another article. Reconcile the same owned article ID through GET and explicit comparison; do not bypass a create conflict with an automatic save. Omit requestId for legacy create behavior. Invalid custom slugs are400 INVALID_REQUEST, duplicates are409 SLUG_CONFLICT, and exhausted bounded automatic candidates are409 SLUG_ALLOCATION_FAILED with the transaction rolled back. Creating a draft does not publish or alter existing release snapshots or links.
+         */
         post: operations["cmsCreateArticle"];
         delete?: never;
         options?: never;
@@ -561,7 +564,7 @@ export interface paths {
         head?: never;
         /**
          * Atomically save original text and CMS metadata
-         * @description Both expectedRevision and cms.expectedRevision must match in one transaction. Any conflict rolls back both changes. Taxonomy-only saves do not change contentRevision or stale audio. Keep draft on 409; never automatically fetch a new revision and retry a write.
+         * @description Both expectedRevision and cms.expectedRevision must match in one transaction. Any conflict rolls back both changes. Taxonomy-only saves do not change contentRevision or stale audio. Keep draft on 409; never automatically fetch a new revision and retry a write. Omitted or blank cms.slug preserves the existing article slug; only a workbench article without CMS metadata receives a stable automatic slug on its first CMS save. Title edits never regenerate links. An explicit valid custom slug may change the draft slug; duplicates are409 SLUG_CONFLICT and exhausted automatic candidates are409 SLUG_ALLOCATION_FAILED. Existing published snapshots, RSS entries and fixed release links are unchanged.
          */
         patch: operations["cmsUpdateArticle"];
         trace?: never;
@@ -1176,7 +1179,8 @@ export interface components {
             totalArticles: number;
         };
         CmsMetadataInput: {
-            slug: string;
+            /** @description Optional article-write slug. Original input is limited to120 characters, then trimmed. Omitted, empty or whitespace-only input allocates a stable automatic slug on create; nonblank custom input uses the existing lowercase ASCII hyphen rule. This does not relax required slugs for structured imports or taxonomy. */
+            slug?: string;
             /** @default  */
             summary: string;
             /** Format: uuid */
@@ -1201,6 +1205,11 @@ export interface components {
             };
         };
         CmsArticleInput: {
+            /**
+             * Format: uuid
+             * @description Optional create idempotency identity, used as article.id. Same owner, identity and normalized input return the original detail only while article.revision and cms.revision are both1. Any version evolution, including publishing or edits restored to equal fields, conflicts with409 CREATE_REQUEST_CONFLICT, as do different inputs or another owner. Recovery requires GET of the same owned ID and explicit comparison; never automatic update. In the initial state, omitted or blank slug means the saved slug. Legacy callers may omit requestId.
+             */
+            requestId?: string;
             /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
             title: string;
             /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
@@ -1214,7 +1223,8 @@ export interface components {
             text: string;
             expectedRevision: number;
             cms: {
-                slug: string;
+                /** @description Omit or send blank to preserve an existing article slug. If this saved workbench article has no CMS metadata, allocate its stable automatic slug on this first CMS save. Original input is limited to120 characters before trimming. Nonblank custom values retain the lowercase ASCII hyphen rule; changing the title never regenerates the slug. */
+                slug?: string;
                 /** @default  */
                 summary: string;
                 /** Format: uuid */
@@ -5114,7 +5124,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description REVISION_CONFLICT / ALREADY_EXISTS / VOCABULARY_LIMIT */
+            /** @description CREATE_REQUEST_CONFLICT / SLUG_CONFLICT / SLUG_ALLOCATION_FAILED / CMS_REFERENCE_CONFLICT */
             409: {
                 headers: {
                     "X-Request-Id"?: string;

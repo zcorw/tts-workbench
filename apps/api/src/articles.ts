@@ -145,7 +145,12 @@ export class ArticleService {
   }
 
   // Caller must use transaction(): CMS and the workbench share one authority.
-  async createInTransaction(c: PoolClient, owner: string, input: unknown) {
+  async createInTransaction(
+    c: PoolClient,
+    owner: string,
+    input: unknown,
+    requestId?: string,
+  ) {
     const value = inputSchema.parse(input);
     const count = Number(
       (
@@ -155,11 +160,15 @@ export class ArticleService {
       ).rows[0].count,
     );
     if (count >= this.maxArticles) throw new ApiError(409, "ARTICLE_LIMIT");
-    const id = randomUUID();
-    await c.query(
-      "INSERT INTO wb_articles(id,account_id,title,text) VALUES($1,$2,$3,$4)",
+    const id =
+      requestId === undefined ? randomUUID() : z.uuid().parse(requestId);
+    const inserted = await c.query(
+      `INSERT INTO wb_articles(id,account_id,title,text) VALUES($1,$2,$3,$4)
+       ${requestId === undefined ? "" : "ON CONFLICT(id) DO NOTHING"}`,
       [id, owner, value.title, value.text],
     );
+    if (inserted.rowCount !== 1)
+      throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
     return this.detailInTransaction(c, owner, id);
   }
 

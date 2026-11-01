@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Japanese TTS Workbench API
-  version: 1.5.0
+  version: 1.6.0
   description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable.
     CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content
     access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
@@ -5064,7 +5064,22 @@ paths:
     post:
       operationId: cmsCreateArticle
       summary: Create article and CMS metadata atomically
-      description: ""
+      description: >-
+        cms.slug may be omitted or blank. Allocate a stable article-<first 12 article UUID hex>
+        slug, with bounded collision suffixes; changing a title never regenerates that slug.
+        A nonblank custom slug is trimmed and must satisfy the existing lowercase ASCII rule.
+        Optional requestId is the article UUID and owner-scoped create idempotency identity.
+        Under the owner lock, an identical normalized replay returns the original detail with201
+        only while both article.revision and cms.revision are1, the initial created state.
+        In that state, omitted or blank slug means the article's already saved slug, not a new
+        allocation. Any later version evolution, including edits, publishing or changed-then-restored
+        fields, is409 CREATE_REQUEST_CONFLICT even when the current writable fields match.
+        A different payload or an identity owned by another account is also409, never an update
+        or another article. Reconcile the same owned article ID through GET and explicit comparison;
+        do not bypass a create conflict with an automatic save. Omit requestId for legacy create behavior. Invalid custom slugs
+        are400 INVALID_REQUEST, duplicates are409 SLUG_CONFLICT, and exhausted bounded
+        automatic candidates are409 SLUG_ALLOCATION_FAILED with the transaction rolled back.
+        Creating a draft does not publish or alter existing release snapshots or links.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -5156,7 +5171,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
-          description: REVISION_CONFLICT / ALREADY_EXISTS / VOCABULARY_LIMIT
+          description: CREATE_REQUEST_CONFLICT / SLUG_CONFLICT / SLUG_ALLOCATION_FAILED / CMS_REFERENCE_CONFLICT
           headers:
             X-Request-Id:
               schema:
@@ -5577,7 +5592,11 @@ paths:
       summary: Atomically save original text and CMS metadata
       description: Both expectedRevision and cms.expectedRevision must match in one transaction. Any conflict rolls
         back both changes. Taxonomy-only saves do not change contentRevision or stale audio. Keep draft on
-        409; never automatically fetch a new revision and retry a write.
+        409; never automatically fetch a new revision and retry a write. Omitted or blank cms.slug preserves
+        the existing article slug; only a workbench article without CMS metadata receives a stable automatic
+        slug on its first CMS save. Title edits never regenerate links. An explicit valid custom slug may
+        change the draft slug; duplicates are409 SLUG_CONFLICT and exhausted automatic candidates are409
+        SLUG_ALLOCATION_FAILED. Existing published snapshots, RSS entries and fixed release links are unchanged.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -9255,14 +9274,16 @@ components:
     CmsMetadataInput:
       type: object
       additionalProperties: false
-      required:
-        - slug
       properties:
         slug:
           type: string
-          minLength: 1
           maxLength: 120
-          pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+          pattern: '^\s*(?:[a-z0-9]+(?:-[a-z0-9]+)*)?\s*$'
+          description: >-
+            Optional article-write slug. Original input is limited to120 characters, then trimmed.
+            Omitted, empty or whitespace-only input allocates a stable automatic slug on create;
+            nonblank custom input uses the existing lowercase ASCII hyphen rule. This does not relax
+            required slugs for structured imports or taxonomy.
         summary:
           type: string
           maxLength: 1000
@@ -9335,6 +9356,16 @@ components:
         - text
         - cms
       properties:
+        requestId:
+          type: string
+          format: uuid
+          description: >-
+            Optional create idempotency identity, used as article.id. Same owner, identity and normalized
+            input return the original detail only while article.revision and cms.revision are both1.
+            Any version evolution, including publishing or edits restored to equal fields, conflicts with409
+            CREATE_REQUEST_CONFLICT, as do different inputs or another owner. Recovery requires GET of the
+            same owned ID and explicit comparison; never automatic update. In the initial state, omitted
+            or blank slug means the saved slug. Legacy callers may omit requestId.
         title:
           type: string
           minLength: 1
@@ -9375,14 +9406,17 @@ components:
           type: object
           additionalProperties: false
           required:
-            - slug
             - expectedRevision
           properties:
             slug:
               type: string
-              minLength: 1
               maxLength: 120
-              pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+              pattern: '^\s*(?:[a-z0-9]+(?:-[a-z0-9]+)*)?\s*$'
+              description: >-
+                Omit or send blank to preserve an existing article slug. If this saved workbench article
+                has no CMS metadata, allocate its stable automatic slug on this first CMS save. Original
+                input is limited to120 characters before trimming. Nonblank custom values retain the
+                lowercase ASCII hyphen rule; changing the title never regenerates the slug.
             summary:
               type: string
               maxLength: 1000
