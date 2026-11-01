@@ -356,7 +356,7 @@ $revision
 
 ### 4.3 已有镜像时：手动拉取部署
 
-如果已经有对应版本的 registry 镜像，可跳过 VPS 源码构建，直接手动使用现有发布脚本。先用 SCP 等方式，把**镜像对应提交**的 `compose.yaml` 放到 `/opt/tts-workbench/releases/<完整Git-SHA>/compose.yaml`，把 `deploy/scripts/deploy.sh` 上传到 `/opt/tts-workbench/deploy.sh`。私有镜像需先以 deploy 用户登录 registry，GHCR 方法见 5.3 节。
+如果已经有对应版本的公开 registry 镜像，可跳过 VPS 源码构建，直接手动使用现有发布脚本。先用 SCP 等方式，把**镜像对应提交**的 `compose.yaml` 放到 `/opt/tts-workbench/releases/<完整Git-SHA>/compose.yaml`，把 `deploy/scripts/deploy.sh` 上传到 `/opt/tts-workbench/deploy.sh`。当前脚本按第 5.3 节匿名拉取公开 app 镜像，不使用部署账号保存的 GHCR PAT。
 
 在 VPS 执行，替换两个占位值：
 
@@ -415,30 +415,23 @@ vps.example.com ssh-ed25519 AAAA...实际主机公钥...
 
 工作流已声明 `contents: read`、`packages: write`，使用 GitHub 自动提供的 `GITHUB_TOKEN` 推送镜像，不要另建同名 Secret。若组织策略限制 Actions 或包写入，需允许该仓库使用这些权限。实际数据库密码、Session秘密和 Azure Key 留在 VPS 的 `.env.production`。
 
-### 5.3 让 VPS 能拉取私有 GHCR 镜像
+### 5.3 VPS 匿名拉取公开 GHCR 镜像
 
-镜像位置由仓库路径生成：`ghcr.io/<小写owner>/<小写仓库名>`。首次推送的包通常是私有包。**Actions 的 registry 登录不会传递给 VPS**；VPS 需要自己的拉取权限。
+镜像位置由仓库路径生成：`ghcr.io/<小写owner>/<小写仓库名>`。**当前 app 包必须为 Public**，且目标 digest 已存在。首次推送的新包通常为 Private；管理员确认发布范围后，需在包设置中明确选择 Public，本脚本不会修改可见性。公开 GHCR 容器镜像允许匿名拉取。[GHCR 权限与认证说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 
-由有该包读取权限的 GitHub 身份创建 PAT classic，权限至少 `read:packages`；组织要求 SSO 时授权对应组织。公开包可匿名拉取。[GHCR 权限与认证说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+`deploy.sh` 仅为 app 的 `docker pull <不可变digest>` 创建一次性配置目录，权限0700，`config.json` 权限0600；其中只有 `auths.ghcr.io` 的空条目、空 helper/store 设置。该子进程移除 `DOCKER_AUTH_CONFIG`，退出时删除临时目录。它不调用 `docker login/logout`，不复制、覆盖或清除部署用户的既有凭据。
 
-以 **与 VPS_USER 相同的用户** 登录 VPS 后执行：
+数据库仍通过原配置执行 `docker compose pull db`，保留 Docker Hub 登录。后续 Compose 的配置、插件及容器代理设置沿用原环境；启动、迁移及回滚使用 `--pull never`，避免隐式拉取时再使用共享 GHCR 登录。回滚要求旧镜像仍在本机缓存；缺失时明确失败并保留 `current`，需要先单独匿名取回准确的旧镜像后再恢复，不能把回滚失败当成成功。
 
-~~~bash
-(
-  set +x
-  set -e
-  umask 077
-  trap 'unset ghcr_token' EXIT
-  read -r -p 'GitHub 用户名：' ghcr_user
-  read -r -s -p 'GHCR 只读 PAT：' ghcr_token
-  printf '\n'
-  printf '%s' "$ghcr_token" | docker login ghcr.io \
-    --username "$ghcr_user" --password-stdin
-  unset ghcr_token
-)
-~~~
+为避免临时配置丢失命名 context 后连到另一 daemon，脚本要求原 `docker context show` 为 `default`，其他 context 会在拉取前停止；它不会切换 context，原有 `DOCKER_HOST`、TLS 环境保持。`default` 本身不保证 daemon 在本机，部署者仍须核对原有端点。私有 app 镜像或命名 context 需要另行设计项目专用凭据/连接，不能靠更新共享 PAT 绕过本脚本。
 
-不要只在 root 用户下 `sudo docker login`，再让 deploy 用户执行拉取；两者使用不同凭据配置。首次镜像还不存在时，可以先完成 registry 登录，再由第一次 workflow 创建包。若镜像已由其他方式创建，检查包是否正确关联本仓库并授予 Actions 访问权。
+**旧 PAT 写在哪里？** 旧指南的 `docker login ghcr.io` 由 Docker 客户端保存凭据；没有 `DOCKER_CONFIG`、helper 或 store 时，位置是该执行用户的 `$HOME/.docker/config.json`，JSON 条目为 `auths["ghcr.io"].auth`。如果 `deploy` 的家目录为 `/home/deploy`，完整路径就是 `/home/deploy/.docker/config.json`。该字段是编码后的登录信息，不能当作脱敏内容打印或粘贴。存在 helper/store 或自定义配置时，存储位置不同，需只读核对；不要输出整个文件。[Docker 凭据存储说明](https://docs.docker.com/reference/cli/docker/login/)
+
+该条目按 registry 共享，不记录 GitHub PAT 的备注，也不按工作目录选择 Token。同一用户、同一配置下的其他 GHCR 项目可能依赖它，因此不要为本项目执行全局 logout、删除该条目或覆盖登录。GitHub 中点击 Regenerate token 不会自动更新 VPS 旧副本；但仅凭备注和条目存在，无法判断保存的是哪一条 PAT。
+
+**Actions 的登录仅发生在 runner**：工作流用自动 `GITHUB_TOKEN` 构建并上传镜像，不把该凭据传给 VPS，也不使用用户手建的拉取 PAT。此次匿名化只改变 VPS app 拉取；不会改变 Actions 发布权限或其他项目认证。
+
+本地验证：18 项隔离模拟部署回归通过，覆盖标准输入/文件执行、成功及失败、共享配置不变、认证环境隔离、临时目录清理、命名 context 拒绝和回滚失败；部署结构检查通过。未连接 VPS、真实拉取镜像或执行数据库操作；需要发布并实际运行该版本脚本后，服务器才会采用此行为。
 
 ### 5.4 执行第一次发布
 
@@ -620,7 +613,7 @@ docker port "$app_id"
 | 失败位置 | 当前行为与处理 |
 |---|---|
 | CI测试或镜像构建失败 | 不进入远程发布，先处理失败步骤。 |
-| SSH/镜像拉取失败 | 不切换 current；检查主机身份、权限和 VPS 的 GHCR 登录。 |
+| SSH/镜像拉取失败 | 不切换 current；检查主机身份、目标包是否 Public、准确 digest 是否存在、原 Docker context/端点及匿名连通性，不修改共享 GHCR 登录。 |
 | 备份失败 | 脚本中止，不继续迁移；检查磁盘空间和数据库状态。 |
 | 迁移失败 | 脚本中止，current不推进；检查迁移与兼容性，不反复盲目重试。 |
 | 新 app 健康失败 | 已有不同成功 release 时尝试恢复旧应用；首次发布没有旧版本可恢复。 |
@@ -737,7 +730,7 @@ docker system df
 | Actions绿色但只有db | 核对远程步骤末尾是否有`Deployed ...`，查看`docker ps -a`；旧脚本标准输入问题及恢复方法见5.5节。 |
 | SSH Permission denied | 用户公钥、Secret私钥、文件权限、是否使用22端口及正确用户。 |
 | Host key verification failed | 从可信控制台重新核对主机公钥；不要关闭 StrictHostKeyChecking。 |
-| GHCR denied / unauthorized | VPS_USER本人是否docker login、PAT是否有read:packages和包访问权、组织SSO是否授权。 |
+| GHCR denied / unauthorized | 当前 app 应匿名拉取：核对实际使用的新 deploy.sh、包 Public、digest 存在及网络。默认 Docker 命令可能仍使用其他项目的共享旧凭据，不能据此判断公开包必须登录。 |
 | APP_IMAGE / env文件缺失 | 是否使用current对应release.env，以及两份--env-file。 |
 | 数据库密码错误 | 已有卷实际密码与配置是否一致；改POSTGRES_PASSWORD不会自动改旧数据库密码。 |
 | 找不到旧文章 | 是否误换了Compose项目、卷或DATABASE_URL；不要因此新建空库覆盖原数据。 |
