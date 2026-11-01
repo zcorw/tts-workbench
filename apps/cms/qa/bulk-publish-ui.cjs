@@ -70,6 +70,7 @@ const make = () =>
       if (p === '/v1/auth/me')
         return reply({ id: 'test-owner', displayName: '演示账户', login: 'preview' });
       if (p === '/v1/auth/csrf') return reply({ csrfToken: 'test-csrf' });
+      if (p === '/v1/cms/audio-batches') return reply({ items: [] });
       if (p === '/v1/cms/taxonomy')
         return reply({ categories: [], tags: [], totalArticles: 3, uncategorizedCount: 3 });
       if (p === '/v1/cms/articles') return reply({ items, total: 3, offset: 0, limit: 20 });

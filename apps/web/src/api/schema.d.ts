@@ -298,7 +298,7 @@ export interface paths {
         put?: never;
         /**
          * Generate and atomically retain last successful article audio
-         * @description F2: synthesize only server-loaded saved original text, never client-supplied input/owner/dictionaryIds/SSML. Client must save first; blank saved text is400 INVALID_REQUEST. Check owner and expectedRevision before any provider call and allocate monotonic per-article generationSeq in a short transaction. Call existing Japanese Gateway outside DB transaction using one immutable personal-rule snapshot. Shared billable rate-limit pool with /v1/audio/speech and /v1/audio/preview, same CSRF/Origin/voice permissions and cancellation; never automatically retry. Buffer complete valid MP3 <=8388608 bytes before commit. Commit transaction locks existing article, rechecks active account/ownership, contentRevision and stored successful generationSeq. Deleted/not-owned returns404. Changed content returns409 ARTICLE_CONTENT_CHANGED, including changed-then-reverted text; title-only edits after admission are allowed. If newer-started generation already succeeded, discard older result with409 AUDIO_SUPERSEDED. If newer generation failed/pending, older success may commit and newer success may replace it later. Replace bytes and metadata atomically, assign fresh audioId; no prior audio row retained. Failure/cancellation/DB failure never clears previous audio; cancellation cannot undo a commit that already happened. Rule changes in flight do not rewrite the actual snapshot: commit the result with actual ruleVersion and audioStale based on current version. Return JSON metadata only after persistence. A successful commit followed by lost HTTP response is recovered through getArticle, never automatic re-synthesis. Article editing revision/updatedAt are unchanged by generation.
+         * @description F2: synthesize only server-loaded saved original text, never client-supplied input/owner/dictionaryIds/SSML. Client must save first; blank saved text is400 INVALID_REQUEST. Optional expectedAudioId and expectedRuleVersion add audio and pronunciation guards without changing legacy callers. Check owner and expectedRevision before any provider call and allocate monotonic per-article generationSeq in a short transaction. Call existing Japanese Gateway outside DB transaction using one immutable personal-rule snapshot. Shared billable rate-limit pool with /v1/audio/speech and /v1/audio/preview, same CSRF/Origin/voice permissions and cancellation; never automatically retry. Buffer complete valid MP3 <=8388608 bytes before commit. Commit transaction locks existing article, rechecks active account/ownership, contentRevision and stored successful generationSeq. Deleted/not-owned returns404. Changed content returns409 ARTICLE_CONTENT_CHANGED, including changed-then-reverted text; title-only edits after admission are allowed. If newer-started generation already succeeded, discard older result with409 AUDIO_SUPERSEDED. If newer generation failed/pending, older success may commit and newer success may replace it later. Replace bytes and metadata atomically, assign fresh audioId; no prior audio row retained. Failure/cancellation/DB failure never clears previous audio; cancellation cannot undo a commit that already happened. Rule changes in flight do not rewrite the actual snapshot: commit the result with actual ruleVersion and audioStale based on current version. Return JSON metadata only after persistence. A successful commit followed by lost HTTP response is recovered through getArticle, never automatic re-synthesis. Article editing revision/updatedAt are unchanged by generation.
          */
         post: operations["generateArticleAudio"];
         delete?: never;
@@ -441,6 +441,67 @@ export interface paths {
         head?: never;
         /** Conditionally update tags */
         patch: operations["cmsUpdatetags"];
+        trace?: never;
+    };
+    "/v1/cms/audio-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Restore owned audio batch progress
+         * @description Return at most five owned batches, active first and otherwise newest first. Read real persistent item states after navigation or refresh. No article body, provider credential or other account's batch is returned. CMS read-only bearer credentials do not authorize this endpoint.
+         */
+        get: operations["listAudioBatches"];
+        put?: never;
+        /**
+         * Queue audio for explicitly selected saved drafts
+         * @description Admit one to twenty distinct owned articles and at most one active batch per account. requestId is owner-scoped idempotency: an identical replay returns the same batch with 202, a different payload is 409 AUDIO_BATCH_REQUEST_CONFLICT, an active different batch is 409 AUDIO_BATCH_ACTIVE, and an archived key is 409 AUDIO_BATCH_EXPIRED; none of these responses silently starts paid work again. Reuse the existing article/Gateway synthesis path, server-side voice permissions and shared account billable admission budget. Execute with bounded serial work; queued items may wait for admission. Validate each saved revision, expected audio identifier and personal-rule version before synthesis. Use the immutable personal pronunciation snapshot actually admitted. Default skip policy leaves any existing audio, including stale audio, untouched. replace requires explicit user confirmation. A failed item retains old audio; version or audio changes produce a per-item conflict rather than replacing a different draft's audio. This operation never publishes or changes immutable CMS releases/media. A lost create response must be reconciled through list/get or the same requestId, never a new automatic synthesis.
+         */
+        post: operations["createAudioBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/audio-batches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one owned persistent audio batch */
+        get: operations["getAudioBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/audio-batches/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel only batch items that have not started
+         * @description Mark still-queued items cancelled. An already running synthesis continues to its real result; cancellation cannot undo requests, generated audio or fees already incurred. Repeat cancellation does not start new work. Return the current owned batch; absent or unowned identifiers are 404. Send a strict empty JSON object.
+         */
+        post: operations["cancelAudioBatchQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/cms/articles": {
@@ -1037,6 +1098,13 @@ export interface components {
         };
         ArticleSynthesis: {
             expectedRevision: number;
+            /**
+             * Format: uuid
+             * @description Optional current-audio guard; mismatch before synthesis or persistence is409 AUDIO_CHANGED.
+             */
+            expectedAudioId?: string | null;
+            /** @description Optional admitted pronunciation-version guard; mismatch before provider call is409 PRONUNCIATION_CHANGED. */
+            expectedRuleVersion?: number;
             voice: string;
             /** @default 1 */
             speed: number;
@@ -1442,8 +1510,121 @@ export interface components {
         CmsReadTokenPage: {
             items: components["schemas"]["CmsReadToken"][];
         };
+        AudioBatchItemInput: {
+            /** Format: uuid */
+            articleId: string;
+            /** @description Selected saved draft revision; never supplied article body. */
+            expectedRevision: number;
+            /**
+             * Format: uuid
+             * @description Confirmed current saved audio identifier, or null when no audio exists.
+             */
+            expectedAudioId: string | null;
+            /** @description Confirmed personal pronunciation-rule version. */
+            expectedRuleVersion: number;
+            /** @description Existing permitted public voice alias, not a provider credential. */
+            voice: string;
+            speed: number;
+        };
+        AudioBatchInput: {
+            /**
+             * Format: uuid
+             * @description Stable owner-scoped idempotency identifier for one confirmed payload.
+             */
+            requestId: string;
+            /**
+             * @description UI defaults to skip every existing audio, including stale audio. Replace must be explicit.
+             * @enum {string}
+             */
+            existingAudio: "skip" | "replace";
+            /** @description Article identifiers must be distinct. No whole-collection or automatic all-article selection. */
+            items: components["schemas"]["AudioBatchItemInput"][];
+        };
+        /** @description Strict empty JSON object; cancellation affects only still-queued items. */
+        AudioBatchCancelInput: Record<string, never>;
+        AudioBatchItem: {
+            /** Format: uuid */
+            articleId: string;
+            title: string;
+            expectedRevision: number;
+            /** Format: uuid */
+            expectedAudioId: string | null;
+            expectedRuleVersion: number;
+            voice: string;
+            speed: number;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "skipped" | "cancelled" | "uncertain";
+            /** @description Safe failure or cancellation code, never a raw provider response or credential. */
+            errorCode?: string;
+            /**
+             * Format: uuid
+             * @description Successful saved audio identifier when persistence was confirmed.
+             */
+            audioId?: string;
+        };
+        AudioBatch: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            requestId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "completed";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            items: components["schemas"]["AudioBatchItem"][];
+        };
+        AudioBatchPage: {
+            items: components["schemas"]["AudioBatch"][];
+        };
     };
-    responses: never;
+    responses: {
+        /** @description Accepted persistent batch, including an identical idempotent replay */
+        AudioBatchAccepted: {
+            headers: {
+                "X-Request-Id"?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AudioBatch"];
+            };
+        };
+        /** @description Owned persistent audio batch and actual per-item states */
+        AudioBatchSuccess: {
+            headers: {
+                "X-Request-Id"?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AudioBatch"];
+            };
+        };
+        /** @description At most five owned batches, active first then newest first */
+        AudioBatchPageSuccess: {
+            headers: {
+                "X-Request-Id"?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AudioBatchPage"];
+            };
+        };
+        /** @description Rejected request or unavailable dependency; inspect code and requestId */
+        AudioBatchError: {
+            headers: {
+                "X-Request-Id"?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -4696,6 +4877,87 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    listAudioBatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AudioBatchPageSuccess"];
+            401: components["responses"]["AudioBatchError"];
+            403: components["responses"]["AudioBatchError"];
+            503: components["responses"]["AudioBatchError"];
+        };
+    };
+    createAudioBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudioBatchInput"];
+            };
+        };
+        responses: {
+            202: components["responses"]["AudioBatchAccepted"];
+            400: components["responses"]["AudioBatchError"];
+            401: components["responses"]["AudioBatchError"];
+            403: components["responses"]["AudioBatchError"];
+            404: components["responses"]["AudioBatchError"];
+            409: components["responses"]["AudioBatchError"];
+            429: components["responses"]["AudioBatchError"];
+            503: components["responses"]["AudioBatchError"];
+        };
+    };
+    getAudioBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AudioBatchSuccess"];
+            400: components["responses"]["AudioBatchError"];
+            401: components["responses"]["AudioBatchError"];
+            403: components["responses"]["AudioBatchError"];
+            404: components["responses"]["AudioBatchError"];
+            503: components["responses"]["AudioBatchError"];
+        };
+    };
+    cancelAudioBatchQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudioBatchCancelInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["AudioBatchSuccess"];
+            400: components["responses"]["AudioBatchError"];
+            401: components["responses"]["AudioBatchError"];
+            403: components["responses"]["AudioBatchError"];
+            404: components["responses"]["AudioBatchError"];
+            429: components["responses"]["AudioBatchError"];
+            503: components["responses"]["AudioBatchError"];
         };
     };
     cmsArticles: {

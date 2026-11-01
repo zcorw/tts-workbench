@@ -48,6 +48,9 @@ import { SpeechService } from "./speech.js";
 import { ArticleService } from "./articles.js";
 import { CmsService } from "./cms.js";
 import { createCmsRouter } from "./cms-http.js";
+import { GenerationAdmission } from "./generation-admission.js";
+import { AudioBatchService } from "./audio-batches.js";
+import { createAudioBatchRouter } from "./audio-batches-http.js";
 import { GatewayError } from "tts-gateway";
 interface ApiRequest extends Request {
   requestId: string;
@@ -62,6 +65,8 @@ export interface State {
   speech: SpeechService;
   articles: ArticleService;
   cms: CmsService;
+  audioBatches: AudioBatchService;
+  generationAdmission: GenerationAdmission;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
   let status = 503,
@@ -391,7 +396,10 @@ class AuthController {
     return { status: "ok" };
   }
 }
-export async function createApplication(config: Config) {
+export async function createApplication(
+  config: Config,
+  options: { batchPollMs?: number } = {},
+) {
   const sites = createSites(config);
   const pool = new Pool({
     connectionString: config.DATABASE_URL,
@@ -431,6 +439,16 @@ export async function createApplication(config: Config) {
     articles,
     config.CMS_READ_TOKENS_ENABLED ?? false,
   );
+  const generationAdmission = new GenerationAdmission(pool);
+  const audioBatches = new AudioBatchService(
+    pool,
+    articles,
+    speech,
+    generationAdmission,
+    {
+      pollMs: options.batchPollMs,
+    },
+  );
   const state: State = {
     pool,
     config,
@@ -439,6 +457,8 @@ export async function createApplication(config: Config) {
     speech,
     articles,
     cms,
+    audioBatches,
+    generationAdmission,
   };
   @Module({
     imports: [
@@ -534,22 +554,24 @@ export async function createApplication(config: Config) {
     next();
   });
   server.use("/v1", csrf.csrfSynchronisedProtection);
-  server.use(
-    rateLimit({
-      skip: (req) =>
-        req.method !== "POST" ||
-        !/^\/v1\/(?:audio\/(?:speech|preview)|articles\/[^/]+\/audio)\/?$/i.test(
-          req.path,
-        ),
-      windowMs: 60000,
-      limit: 10,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      keyGenerator: (req) => requireAccount(req).id,
-      handler: (req, res) =>
-        sendError(new ApiError(429, "RATE_LIMITED"), req, res),
-    }),
-  );
+  server.use((req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.method !== "POST" ||
+      !/^\/v1\/(?:audio\/(?:speech|preview)|articles\/[^/]+\/audio)\/?$/i.test(
+        req.path,
+      )
+    )
+      return next();
+    Promise.resolve()
+      .then(async () => {
+        const slot = await generationAdmission.acquire(requireAccount(req).id);
+        if (!slot.allowed)
+          return sendError(new ApiError(429, "RATE_LIMITED"), req, res);
+        next();
+      })
+      .catch(next);
+  });
+  server.use("/v1/cms/audio-batches", createAudioBatchRouter(audioBatches));
   server.use(
     "/v1/cms",
     createCmsRouter(cms, (req) => sites.origin(req) ?? config.PUBLIC_ORIGIN),
@@ -560,11 +582,13 @@ export async function createApplication(config: Config) {
   );
   app.useGlobalFilters(new ErrorFilter());
   await app.init();
+  audioBatches.start();
   const cmsServer = sites.cmsServer(server);
   let closing: Promise<void> | undefined;
   const close = () =>
     (closing ??= (async () => {
       await Promise.all([closeHttp(cmsServer), closeHttp(app.getHttpServer())]);
+      await audioBatches.close();
       await app.close();
       await speech.close();
       sessions.store.close();

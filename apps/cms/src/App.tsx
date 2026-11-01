@@ -14,6 +14,7 @@ import { CmsPage } from './features/CmsPage';
 import { CmsLayout } from './CmsLayout';
 import { AuthPage } from './AuthPage';
 import { AccountPage } from './AccountPage';
+import { BatchAudioProvider } from './features/BatchAudio';
 
 const defaultConfig: PublicConfig = {
   registrationOpen: false,
@@ -26,6 +27,13 @@ export function App({ services }: { services: Services }) {
     navigate = useNavigate(),
     client = useQueryClient();
   const [guard, setGuard] = useState<NavigationGuard | undefined>();
+  const [audioSubmitting, setAudioSubmitting] = useState(false);
+  const liveAudioSubmitting = useRef(false);
+  const blockedByAudioSubmission = useRef(false);
+  const onAudioSubmittingChange = useCallback((value: boolean) => {
+    liveAudioSubmitting.current = value;
+    setAudioSubmitting(value);
+  }, []);
   const [notice, setNotice] = useState(''),
     [toast, setToast] = useState('');
   const liveGuard = useRef(guard),
@@ -114,6 +122,10 @@ export function App({ services }: { services: Services }) {
     document.title = `${authPath ? '登录' : location.pathname.startsWith('/read') ? '阅读库' : '内容管理'} · 内容库`;
   }, [authPath, location.pathname]);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (liveAudioSubmitting.current && currentLocation.key !== nextLocation.key) {
+      blockedByAudioSubmission.current = true;
+      return true;
+    }
     if (bypass.current) {
       bypass.current = false;
       return false;
@@ -122,20 +134,26 @@ export function App({ services }: { services: Services }) {
     return !!value && (value.dirty || value.saving) && currentLocation.key !== nextLocation.key;
   });
   useEffect(() => {
+    if (blocker.state !== 'blocked') {
+      blockedByAudioSubmission.current = false;
+      return;
+    }
     if (
-      location.pathname === '/articles' &&
-      blocker.state === 'blocked' &&
+      (location.pathname === '/articles' || blockedByAudioSubmission.current) &&
       !guard?.dirty &&
-      !guard?.saving
-    )
+      !guard?.saving &&
+      !audioSubmitting
+    ) {
+      blockedByAudioSubmission.current = false;
       blocker.reset();
-  }, [blocker, guard, location.pathname]);
+    }
+  }, [blocker, guard, audioSubmitting, location.pathname]);
   const liveBlocker = useRef(blocker);
   liveBlocker.current = blocker;
   useBeforeUnload(
     useCallback((e: BeforeUnloadEvent) => {
       const value = liveGuard.current;
-      if (value?.dirty || value?.saving) {
+      if (value?.dirty || value?.saving || liveAudioSubmitting.current) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -190,40 +208,51 @@ export function App({ services }: { services: Services }) {
           onLogin={loggedIn}
         />
       ) : (
-        <CmsLayout account={account}>
-          {loadError && <ErrorNotice message={messageOf(loadError)} />}
-          {location.pathname === '/account' ? (
-            <AccountPage
-              key={account.id}
-              account={account}
-              onUpdate={(value) => client.setQueryData(['session'], value)}
-              onLogout={logout}
-            />
-          ) : (
-            <CmsPage
-              key={account.id}
-              accountId={account.id}
-              services={services}
-              failed={failed}
-              onGuardChange={onGuardChange}
-              allowNavigation={allowNavigation}
-            />
+        <BatchAudioProvider
+          key={account.id}
+          accountId={account.id}
+          services={services}
+          failed={failed}
+          onSubmittingChange={onAudioSubmittingChange}
+        >
+          {(audioPanel) => (
+            <CmsLayout account={account}>
+              {audioPanel}
+              {loadError && <ErrorNotice message={messageOf(loadError)} />}
+              {location.pathname === '/account' ? (
+                <AccountPage
+                  key={account.id}
+                  account={account}
+                  onUpdate={(value) => client.setQueryData(['session'], value)}
+                  onLogout={logout}
+                />
+              ) : (
+                <CmsPage
+                  key={account.id}
+                  accountId={account.id}
+                  services={services}
+                  failed={failed}
+                  onGuardChange={onGuardChange}
+                  allowNavigation={allowNavigation}
+                />
+              )}
+            </CmsLayout>
           )}
-        </CmsLayout>
+        </BatchAudioProvider>
       )}
       {blocker.state === 'blocked' && (
         <Modal
           id="unsavedDialog"
-          title={guard?.saving ? '正在处理，请稍候' : '保存修改后再离开？'}
-          busy={guard?.saving}
+          title={guard?.saving || audioSubmitting ? '正在处理，请稍候' : '保存修改后再离开？'}
+          busy={guard?.saving || audioSubmitting}
           onClose={() => blocker.reset()}
         >
           <p>
-            {guard?.saving
+            {guard?.saving || audioSubmitting
               ? '操作尚未完成，请留在当前页面等待结果。'
               : '文章有未保存修改。保存正文和 CMS 信息不会自动生成音频或发布。'}
           </p>
-          {!guard?.saving && (
+          {!guard?.saving && !audioSubmitting && (
             <div className="dialog-footer">
               <button
                 className="button secondary"

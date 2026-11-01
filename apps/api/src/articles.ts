@@ -210,11 +210,19 @@ export class ArticleService {
     speech: SpeechService,
     signal: AbortSignal,
     requestId: string,
+    hooks: {
+      completed?: (
+        c: PoolClient,
+        result: Record<string, unknown>,
+      ) => Promise<void>;
+    } = {},
   ) {
     z.uuid().parse(id);
     const dto = z
       .strictObject({
         expectedRevision: z.number().int().min(1),
+        expectedAudioId: z.uuid().nullable().optional(),
+        expectedRuleVersion: z.number().int().min(0).optional(),
         voice: z.string().min(1),
         speed: z
           .number()
@@ -230,6 +238,17 @@ export class ArticleService {
     const saved = await this.transaction(owner, async (c) => {
       active();
       await this.checkInTransaction(c, owner, id, dto.expectedRevision);
+      if (dto.expectedAudioId !== undefined) {
+        const current =
+          (
+            await c.query(
+              "SELECT metadata->>'audioId' AS id FROM wb_article_audio WHERE article_id=$1",
+              [id],
+            )
+          ).rows[0]?.id ?? null;
+        if (current !== dto.expectedAudioId)
+          throw new ApiError(409, "AUDIO_CHANGED");
+      }
       const row = (
         await c.query(
           "SELECT text,content_revision FROM wb_articles WHERE id=$1",
@@ -252,6 +271,7 @@ export class ArticleService {
       false,
       signal,
       requestId,
+      dto.expectedRuleVersion,
     );
     active();
     return this.transaction(owner, async (c) => {
@@ -267,6 +287,28 @@ export class ArticleService {
       if (!row) throw new ApiError(404, "NOT_FOUND");
       if (row.content_revision !== saved.content_revision)
         throw new ApiError(409, "ARTICLE_CONTENT_CHANGED");
+      if (dto.expectedAudioId !== undefined) {
+        const current =
+          (
+            await c.query(
+              "SELECT metadata->>'audioId' AS id FROM wb_article_audio WHERE article_id=$1",
+              [id],
+            )
+          ).rows[0]?.id ?? null;
+        if (current !== dto.expectedAudioId)
+          throw new ApiError(409, "AUDIO_CHANGED");
+      }
+      if (dto.expectedRuleVersion !== undefined) {
+        const current =
+          (
+            await c.query(
+              "SELECT version FROM wb_rule_sets WHERE account_id=$1 FOR SHARE",
+              [owner],
+            )
+          ).rows[0]?.version ?? 0;
+        if (current !== dto.expectedRuleVersion)
+          throw new ApiError(409, "PRONUNCIATION_CHANGED");
+      }
       const previous = (
         await c.query(
           "SELECT generation_seq FROM wb_article_audio WHERE article_id=$1",
@@ -297,7 +339,7 @@ export class ArticleService {
       );
       const detail = await this.detailInTransaction(c, owner, id);
       active();
-      return {
+      const output = {
         articleId: id,
         revision: detail.revision,
         contentRevision: detail.contentRevision,
@@ -305,6 +347,9 @@ export class ArticleService {
         audio: detail.audio,
         audioStale: detail.audioStale,
       };
+      await hooks.completed?.(c, output);
+      active();
+      return output;
     });
   }
 
