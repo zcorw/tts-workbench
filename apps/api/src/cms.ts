@@ -505,16 +505,19 @@ export class CmsService {
       );
   }
   async create(owner: string, input: unknown) {
+    return this.write(owner, (c) => this.createInTransaction(c, owner, input));
+  }
+  // The caller must hold ArticleService.transaction's account lock. MCP saves
+  // its idempotency receipt in this same transaction as the article and metadata.
+  async createInTransaction(c: PoolClient, owner: string, input: unknown) {
     const dto = createSchema.parse(input);
-    return this.write(owner, async (c) => {
-      const article = await this.articles.createInTransaction(c, owner, {
-        title: dto.title,
-        text: dto.text,
-      });
-      const id = article.id as string;
-      await this.saveMeta(c, owner, id, dto.cms, 0);
-      return this.detail(c, owner, id);
+    const article = await this.articles.createInTransaction(c, owner, {
+      title: dto.title,
+      text: dto.text,
     });
+    const id = article.id as string;
+    await this.saveMeta(c, owner, id, dto.cms, 0);
+    return this.detail(c, owner, id);
   }
   async update(owner: string, id: string, input: unknown) {
     uuid.parse(id);

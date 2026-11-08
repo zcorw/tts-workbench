@@ -41,6 +41,12 @@ export const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  CMS_MCP_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  CMS_MCP_CLIENT_ID: z.string().min(1).max(200).optional(),
+  CMS_MCP_REDIRECT_URIS: z.string().max(10000).optional(),
   TTS_AZURE_SPEECH_KEY: z.string().optional(),
   TTS_AZURE_JA_VOICE_ID: z.string().optional(),
   TTS_PRODUCTION_APPROVED: z
@@ -65,5 +71,37 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("Production CMS_PUBLIC_ORIGIN requires HTTPS");
   if (config.CMS_DIST && config.CMS_PORT === config.PORT)
     throw new Error("CMS_PORT and PORT must be different");
+  if (config.CMS_MCP_ENABLED) {
+    if (
+      !config.CMS_PUBLIC_ORIGIN ||
+      !config.CMS_MCP_CLIENT_ID ||
+      !config.CMS_MCP_REDIRECT_URIS
+    )
+      throw new Error(
+        "MCP requires CMS_PUBLIC_ORIGIN, a predefined public client ID and exact redirect URI allowlist",
+      );
+    const redirects = config.CMS_MCP_REDIRECT_URIS.split(",");
+    if (
+      redirects.length > 10 ||
+      redirects.some((uri) => {
+        try {
+          const parsed = new URL(uri);
+          return (
+            parsed.protocol !== "https:" ||
+            !!parsed.username ||
+            !!parsed.password ||
+            !!parsed.hash ||
+            uri.includes("*") ||
+            parsed.href !== uri
+          );
+        } catch {
+          return true;
+        }
+      })
+    )
+      throw new Error(
+        "MCP redirect URIs must be exact HTTPS URLs without credentials, fragments or wildcards",
+      );
+  }
   return config;
 }

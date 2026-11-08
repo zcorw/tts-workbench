@@ -48,6 +48,9 @@ import { SpeechService } from "./speech.js";
 import { ArticleService } from "./articles.js";
 import { CmsService } from "./cms.js";
 import { createCmsRouter } from "./cms-http.js";
+import { McpBatchService } from "./mcp-batch.js";
+import { McpOAuthService } from "./mcp-oauth.js";
+import { createMcpRouter, createMcpAccountRouter } from "./mcp-http.js";
 import { GatewayError } from "tts-gateway";
 interface ApiRequest extends Request {
   requestId: string;
@@ -62,6 +65,8 @@ export interface State {
   speech: SpeechService;
   articles: ArticleService;
   cms: CmsService;
+  mcpBatch: McpBatchService;
+  mcpOAuth: McpOAuthService;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
   const parserError =
@@ -469,6 +474,8 @@ export async function createApplication(config: Config) {
     speech,
     articles,
     cms,
+    mcpBatch: new McpBatchService(pool, articles, cms),
+    mcpOAuth: new McpOAuthService(pool, articles, config),
   };
   @Module({
     imports: [
@@ -501,6 +508,15 @@ export async function createApplication(config: Config) {
     });
     next();
   });
+  server.use(
+    createMcpRouter(
+      config,
+      state.mcpOAuth,
+      state.mcpBatch,
+      cms,
+      (req) => !config.CMS_DIST || sites.isCms(req),
+    ),
+  );
   server.use((req: Request, res: Response, next: NextFunction) => {
     const expectedOrigin = sites.origin(req);
     if (/^\/v1(?:\/|$)/i.test(req.path) && !expectedOrigin)
@@ -564,6 +580,14 @@ export async function createApplication(config: Config) {
     next();
   });
   server.use("/v1", csrf.csrfSynchronisedProtection);
+  server.use(
+    "/v1/cms/mcp",
+    createMcpAccountRouter(
+      config,
+      state.mcpOAuth,
+      (req) => requireAccount(req).id,
+    ),
+  );
   server.use(
     rateLimit({
       skip: (req) =>

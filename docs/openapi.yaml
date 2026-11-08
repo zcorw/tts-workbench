@@ -1,14 +1,17 @@
 openapi: 3.0.3
 info:
   title: Japanese TTS Workbench API
-  version: 1.4.0
+  version: 1.5.0
   description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable.
     CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content
     access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
     HTTPS, proxies a single 127.0.0.1 Compose port. Do not trust caller-supplied identity or forwarded
     headers. Fetch with credentials same-origin. Every mutation uses JSON (except bodyless logout/delete),
     Origin verification and X-CSRF-Token; registration and CMS read-token issuance are opt-in. No
-    local-position override."
+    local-position override. 知声 MCP is opt-in at the CMS origin /mcp, using dedicated OAuth
+    authorization-code/PKCE grants, not browser cookies or existing read tokens. Browser consent/management
+    still requires Session/Origin/CSRF. See docs/CMS_MCP.md for immutable batch IDs and operational
+    boundaries."
 servers:
   - url: /
 paths:
@@ -8075,6 +8078,807 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /v1/cms/mcp/config:
+    get:
+      operationId: cmsMcpConfig
+      summary: 知声 MCP owner consent / connections
+      description: Default disabled (404). Current Session required; all mutations require matching Origin and
+        X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpConfig"
+        "400":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/cms/mcp/authorization:
+    get:
+      operationId: cmsMcpAuthorization
+      summary: 知声 MCP owner consent / connections
+      description: Default disabled (404). Current Session required; all mutations require matching Origin and
+        X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - code
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{43}$
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - S256
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpAuthorizationView"
+        "400":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/cms/mcp/authorize:
+    post:
+      operationId: cmsMcpConsent
+      summary: 知声 MCP owner consent / connections
+      description: Default disabled (404). Current Session required; all mutations require matching Origin and
+        X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/McpConsent"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpRedirect"
+        "400":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/cms/mcp/grants:
+    get:
+      operationId: cmsMcpGrants
+      summary: 知声 MCP owner consent / connections
+      description: Default disabled (404). Current Session required; all mutations require matching Origin and
+        X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpGrantPage"
+        "400":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/cms/mcp/grants/{id}:
+    delete:
+      operationId: cmsMcpRevokeGrant
+      summary: 知声 MCP owner consent / connections
+      description: Default disabled (404). Current Session required; all mutations require matching Origin and
+        X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Owned grant revoked; subsequent MCP calls fail immediately.
+        "400":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /.well-known/oauth-protected-resource:
+    get:
+      operationId: cmsMcpResourceMetadataRoot
+      summary: 知声 OAuth discovery
+      security: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /.well-known/oauth-protected-resource/mcp:
+    get:
+      operationId: cmsMcpResourceMetadata
+      summary: 知声 OAuth discovery
+      security: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /.well-known/oauth-authorization-server:
+    get:
+      operationId: cmsMcpOAuthMetadata
+      summary: 知声 OAuth discovery
+      security: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /mcp/oauth/authorize:
+    get:
+      operationId: cmsMcpBeginAuthorization
+      summary: Validate predefined public client and PKCE, then open browser consent
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - code
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{43}$
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - S256
+      responses:
+        "302":
+          description: Redirect to same-origin /connections/mcp; login then explicit consent required.
+          headers:
+            Location:
+              schema:
+                type: string
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /mcp/oauth/token:
+    post:
+      operationId: cmsMcpExchangeToken
+      summary: 知声 OAuth public-client token endpoint
+      description: Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE
+        S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth
+        errors. Never log request/response bodies.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/McpTokenRequest"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/McpTokenRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpTokenResponse"
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+  /mcp/oauth/revoke:
+    post:
+      operationId: cmsMcpRevokeToken
+      summary: 知声 OAuth public-client token endpoint
+      description: Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE
+        S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth
+        errors. Never log request/response bodies.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                token:
+                  type: string
+                client_id:
+                  type: string
+              required:
+                - token
+                - client_id
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                token:
+                  type: string
+                client_id:
+                  type: string
+              required:
+                - token
+                - client_id
+      responses:
+        "200":
+          description: Token grant revoked or unknown token ignored.
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+  /mcp:
+    post:
+      operationId: cmsMcpMessage
+      summary: 知声 stateless Streamable HTTP MCP
+      description: CMS listener only in dual-entry mode. Requires dedicated OAuth bearer on every request; browser
+        cookies and read tokens never authorize. 1 MiB JSON envelope, 20 drafts, one batch/account and two
+        batches/process, 120 requests/IP/minute. Uses SDK 1.32.2, protocol negotiation through 2025-11-25. No
+        SSE GET stream; GET/DELETE return 405. Notifications return 202. tools/list is authoritative for tool
+        schemas.
+      security:
+        - cmsMcpOAuth: []
+      parameters:
+        - name: Accept
+          in: header
+          required: true
+          schema:
+            type: string
+            example: application/json, text/event-stream
+        - name: MCP-Protocol-Version
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/McpRpcRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpRpcResponse"
+        "202":
+          description: Notification accepted, no body
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpRpcResponse"
+        "401":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+        "403":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "405":
+          description: POST only
+        "413":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure;
+            content is never echoed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpOAuthError"
 components:
   securitySchemes:
     sessionCookie:
@@ -8090,6 +8894,16 @@ components:
       scheme: bearer
       description: Only current published CMS reading endpoints. Short-lived, revocable and owner/category scoped;
         no draft/edit/synthesis access.
+    cmsMcpOAuth:
+      type: oauth2
+      description: Dedicated owner-scoped MCP grant; never accepted as a Session/REST/read bearer.
+      flows:
+        authorizationCode:
+          authorizationUrl: /mcp/oauth/authorize
+          tokenUrl: /mcp/oauth/token
+          scopes:
+            cms:read: Read own article drafts and taxonomy
+            cms:drafts:create: Create private drafts and query batch receipts
   schemas:
     Error:
       type: object
@@ -10071,3 +10885,323 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CmsReadToken"
+    McpAuthorization:
+      type: object
+      additionalProperties: false
+      properties:
+        response_type:
+          type: string
+          enum:
+            - code
+        client_id:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        resource:
+          type: string
+          format: uri
+        scope:
+          type: string
+        state:
+          type: string
+          maxLength: 512
+        code_challenge:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+        code_challenge_method:
+          type: string
+          enum:
+            - S256
+      required:
+        - response_type
+        - client_id
+        - redirect_uri
+        - resource
+        - scope
+        - code_challenge
+        - code_challenge_method
+    McpConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        clientId:
+          type: string
+        resource:
+          type: string
+          format: uri
+      required:
+        - clientId
+        - resource
+    McpAuthorizationView:
+      type: object
+      additionalProperties: false
+      properties:
+        clientId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        scopes:
+          type: array
+          items:
+            type: string
+        resource:
+          type: string
+          format: uri
+      required:
+        - clientId
+        - redirectUri
+        - scopes
+        - resource
+    McpConsent:
+      type: object
+      additionalProperties: false
+      properties:
+        authorization:
+          $ref: "#/components/schemas/McpAuthorization"
+        approve:
+          type: boolean
+      required:
+        - authorization
+        - approve
+    McpRedirect:
+      type: object
+      additionalProperties: false
+      properties:
+        redirectUrl:
+          type: string
+          format: uri
+          description: Exact allowlisted callback; includes short-lived authorization code or access_denied, issuer and
+            original state. Never log the URL.
+      required:
+        - redirectUrl
+    McpGrant:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - clientId
+        - scopes
+        - createdAt
+        - expiresAt
+        - revokedAt
+    McpGrantPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/McpGrant"
+      required:
+        - items
+    McpDraftInput:
+      type: object
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint.
+        text:
+          type: string
+          maxLength: 10000
+          description: Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most
+            49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and
+            U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace.
+        summary:
+          type: string
+          maxLength: 1000
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        tagIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 50
+          uniqueItems: true
+      required:
+        - requestId
+        - title
+        - text
+    McpBatchInput:
+      type: object
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/McpDraftInput"
+          minItems: 1
+          maxItems: 20
+      required:
+        - batchId
+        - items
+    McpItemResult:
+      type: object
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$
+        status:
+          type: string
+          enum:
+            - created
+            - error
+            - pending
+        articleId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        revision:
+          type: integer
+        cmsRevision:
+          type: integer
+        code:
+          type: string
+        retryable:
+          type: boolean
+        editUrl:
+          type: string
+          format: uri
+      required:
+        - requestId
+        - status
+    McpBatchResult:
+      type: object
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/McpItemResult"
+        created:
+          type: integer
+        failed:
+          type: integer
+        pending:
+          type: integer
+      required:
+        - batchId
+        - items
+        - created
+        - failed
+        - pending
+    McpTokenRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - authorization_code
+            - refresh_token
+        client_id:
+          type: string
+        resource:
+          type: string
+        code:
+          type: string
+        redirect_uri:
+          type: string
+        code_verifier:
+          type: string
+        refresh_token:
+          type: string
+      required:
+        - grant_type
+        - client_id
+        - resource
+    McpTokenResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum:
+            - Bearer
+        expires_in:
+          type: integer
+          maximum: 900
+        scope:
+          type: string
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - scope
+    McpOAuthError:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    McpRpcRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        jsonrpc:
+          type: string
+          enum:
+            - "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+        method:
+          type: string
+        params:
+          type: object
+          additionalProperties: true
+      required:
+        - jsonrpc
+        - method
+    McpRpcResponse:
+      type: object
+      additionalProperties: true
+      description: SDK JSON-RPC response. tools/call returns content and structuredContent; domain failures set
+        isError. Tool arguments and annotations are discovered through tools/list. Batch receipts use
+        McpBatchResult.

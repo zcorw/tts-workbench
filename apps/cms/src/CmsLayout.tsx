@@ -10,16 +10,17 @@ const navigation = [
   ['/import', '导入'],
   ['/taxonomy', '分类管理'],
   ['/interfaces', '只读接口'],
+  ['/connections/mcp', 'ChatGPT 连接'],
 ] as const;
 export function CmsLayout({ account, children }: { account: Account; children: ReactNode }) {
   return (
     <div className="cms-site-shell">
       <header className="site-masthead">
         <div className="site-masthead-inner">
-          <Link to="/" className="site-brand" aria-label="内容库首页">
+          <Link to="/" className="site-brand" aria-label="知声首页">
             <span className="site-brand-icon">文</span>
             <span>
-              内容库<small>CONTENT DESK</small>
+              知声<small>ZHISHENG · CONTENT DESK</small>
             </span>
           </Link>
           <div className="site-user-links">
@@ -37,7 +38,7 @@ export function CmsLayout({ account, children }: { account: Account; children: R
             </Link>
           </div>
         </div>
-        <nav className="site-navigation" aria-label="内容库导航">
+        <nav className="site-navigation" aria-label="知声导航">
           {navigation.map(([url, label]) => (
             <NavLink
               key={url}
@@ -56,7 +57,7 @@ export function CmsLayout({ account, children }: { account: Account; children: R
         </div>
       </main>
       <footer className="site-footer">
-        <span>内容库 · 记录、整理、发布</span>
+        <span>知声 · 记录、整理、发布</span>
         <span>日文原文 / 固定发布 / 私人阅读</span>
       </footer>
     </div>

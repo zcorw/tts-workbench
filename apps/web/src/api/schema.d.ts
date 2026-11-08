@@ -765,6 +765,234 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cms/mcp/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpAuthorization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        post: operations["cmsMcpConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/grants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        delete: operations["cmsMcpRevokeGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpResourceMetadataRoot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpResourceMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-authorization-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpOAuthMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate predefined public client and PKCE, then open browser consent */
+        get: operations["cmsMcpBeginAuthorization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 OAuth public-client token endpoint
+         * @description Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth errors. Never log request/response bodies.
+         */
+        post: operations["cmsMcpExchangeToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 OAuth public-client token endpoint
+         * @description Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth errors. Never log request/response bodies.
+         */
+        post: operations["cmsMcpRevokeToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 stateless Streamable HTTP MCP
+         * @description CMS listener only in dual-entry mode. Requires dedicated OAuth bearer on every request; browser cookies and read tokens never authorize. 1 MiB JSON envelope, 20 drafts, one batch/account and two batches/process, 120 requests/IP/minute. Uses SDK 1.32.2, protocol negotiation through 2025-11-25. No SSE GET stream; GET/DELETE return 405. Notifications return 202. tools/list is authoritative for tool schemas.
+         */
+        post: operations["cmsMcpMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1441,6 +1669,129 @@ export interface components {
         };
         CmsReadTokenPage: {
             items: components["schemas"]["CmsReadToken"][];
+        };
+        McpAuthorization: {
+            /** @enum {string} */
+            response_type: "code";
+            client_id: string;
+            /** Format: uri */
+            redirect_uri: string;
+            /** Format: uri */
+            resource: string;
+            scope: string;
+            state?: string;
+            code_challenge: string;
+            /** @enum {string} */
+            code_challenge_method: "S256";
+        };
+        McpConfig: {
+            clientId: string;
+            /** Format: uri */
+            resource: string;
+        };
+        McpAuthorizationView: {
+            clientId: string;
+            /** Format: uri */
+            redirectUri: string;
+            scopes: string[];
+            /** Format: uri */
+            resource: string;
+        };
+        McpConsent: {
+            authorization: components["schemas"]["McpAuthorization"];
+            approve: boolean;
+        };
+        McpRedirect: {
+            /**
+             * Format: uri
+             * @description Exact allowlisted callback; includes short-lived authorization code or access_denied, issuer and original state. Never log the URL.
+             */
+            redirectUrl: string;
+        };
+        McpGrant: {
+            /** Format: uuid */
+            id: string;
+            clientId: string;
+            scopes: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            revokedAt: string | null;
+        };
+        McpGrantPage: {
+            items: components["schemas"]["McpGrant"][];
+        };
+        McpDraftInput: {
+            requestId: string;
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
+            text: string;
+            summary?: string;
+            /** Format: uuid */
+            categoryId?: string | null;
+            tagIds?: string[];
+        };
+        McpBatchInput: {
+            batchId: string;
+            items: components["schemas"]["McpDraftInput"][];
+        };
+        McpItemResult: {
+            requestId: string;
+            /** @enum {string} */
+            status: "created" | "error" | "pending";
+            /** Format: uuid */
+            articleId?: string;
+            slug?: string;
+            revision?: number;
+            cmsRevision?: number;
+            code?: string;
+            retryable?: boolean;
+            /** Format: uri */
+            editUrl?: string;
+        };
+        McpBatchResult: {
+            batchId: string;
+            items: components["schemas"]["McpItemResult"][];
+            created: number;
+            failed: number;
+            pending: number;
+        };
+        McpTokenRequest: {
+            /** @enum {string} */
+            grant_type: "authorization_code" | "refresh_token";
+            client_id: string;
+            resource: string;
+            code?: string;
+            redirect_uri?: string;
+            code_verifier?: string;
+            refresh_token?: string;
+        };
+        McpTokenResponse: {
+            access_token: string;
+            refresh_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            expires_in: number;
+            scope: string;
+        };
+        McpOAuthError: {
+            error: string;
+        };
+        McpRpcRequest: {
+            /** @enum {string} */
+            jsonrpc: "2.0";
+            id?: string | number;
+            method: string;
+            params?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description SDK JSON-RPC response. tools/call returns content and structuredContent; domain failures set isError. Tool arguments and annotations are discovered through tools/list. Batch receipts use McpBatchResult. */
+        McpRpcResponse: {
+            [key: string]: unknown;
         };
     };
     responses: never;
@@ -6933,6 +7284,912 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpConfig"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpAuthorization: {
+        parameters: {
+            query: {
+                response_type: "code";
+                client_id: string;
+                redirect_uri: string;
+                resource: string;
+                scope: string;
+                state?: string;
+                code_challenge: string;
+                code_challenge_method: "S256";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpAuthorizationView"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpConsent"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRedirect"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGrantPage"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpRevokeGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned grant revoked; subsequent MCP calls fail immediately. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpResourceMetadataRoot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpResourceMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpBeginAuthorization: {
+        parameters: {
+            query: {
+                response_type: "code";
+                client_id: string;
+                redirect_uri: string;
+                resource: string;
+                scope: string;
+                state?: string;
+                code_challenge: string;
+                code_challenge_method: "S256";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to same-origin /connections/mcp; login then explicit consent required. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpExchangeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["McpTokenRequest"];
+                "application/json": components["schemas"]["McpTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpTokenResponse"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    cmsMcpRevokeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    token: string;
+                    client_id: string;
+                };
+                "application/json": {
+                    token: string;
+                    client_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Token grant revoked or unknown token ignored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    cmsMcpMessage: {
+        parameters: {
+            query?: never;
+            header: {
+                Accept: string;
+                "MCP-Protocol-Version"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpRpcRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRpcResponse"];
+                };
+            };
+            /** @description Notification accepted, no body */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRpcResponse"];
+                };
+            };
+            /** @description Success */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description POST only */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
                 };
             };
         };

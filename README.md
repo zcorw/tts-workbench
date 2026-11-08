@@ -1,5 +1,7 @@
 # TTS Workbench
 
+独立 CMS 现命名为**知声**。ChatGPT 批量保存草稿的 MCP 第一版、OAuth/PKCE、幂等重试和启用边界见 [知声 MCP](docs/CMS_MCP.md)；默认关闭，未部署或签发真实凭据。
+
 React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默认保存为本人规则，适用于当前及以后文章；原文保持不变，没有“仅此处”分支。
 
 真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。“我的文章”支持搜索分页、新建、打开、编辑保存与删除。每篇只保存最新标题正文和最后成功音频；刷新或重新登录后可继续编辑、播放与下载。详见[文章管理增量](docs/ARTICLE_MANAGEMENT.md)。无供应商配置时，音色目录为空、合成返回503；本地协议测试不代表真实日文发音效果验收。
@@ -57,7 +59,7 @@ npm --prefix apps/web run dev
 - 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
-当前[OpenAPI 1.4.0](docs/openapi.yaml)含52个操作，规范校验及前端生成类型检查通过。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)；接口修改须同步契约和前端生成类型。
+当前[OpenAPI 1.5.0](docs/openapi.yaml)含64个操作，新增知声 MCP/OAuth 契约并同步前端类型。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)；接口修改须同步契约和前端生成类型。
 
 ## 部署
 

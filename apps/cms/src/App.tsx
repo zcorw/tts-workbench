@@ -12,6 +12,7 @@ import {
 import type { NavigationGuard } from './features/types';
 import { CmsPage } from './features/CmsPage';
 import { CmsLayout } from './CmsLayout';
+import { CmsMcp } from './features/CmsMcp';
 import { AuthPage } from './AuthPage';
 import { AccountPage } from './AccountPage';
 
@@ -108,7 +109,7 @@ export function App({ services }: { services: Services }) {
     }
   }, [location.pathname, location.search, navigate]);
   useEffect(() => {
-    document.title = `${authPath ? '登录' : location.pathname.startsWith('/read') ? '阅读库' : '内容管理'} · 内容库`;
+    document.title = `${authPath ? '登录' : location.pathname.startsWith('/read') ? '阅读库' : '内容管理'} · 知声`;
   }, [authPath, location.pathname]);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     if (bypass.current) {
@@ -153,7 +154,7 @@ export function App({ services }: { services: Services }) {
     void client.cancelQueries({ queryKey: ['session'] });
     client.setQueryData(['session'], null);
     setGuard(undefined);
-    setNotice('已退出内容库。');
+    setNotice('已退出知声。');
     bypass.current = true;
     navigate('/login', { replace: true });
   };
@@ -187,6 +188,8 @@ export function App({ services }: { services: Services }) {
               onUpdate={(value) => client.setQueryData(['session'], value)}
               onLogout={logout}
             />
+          ) : location.pathname === '/connections/mcp' ? (
+            <CmsMcp key={account.id} accountId={account.id} />
           ) : (
             <CmsPage
               key={account.id}

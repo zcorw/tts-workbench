@@ -46,8 +46,8 @@ server {
     proxy_send_timeout 75s;
     proxy_buffering off;
     proxy_cache off;
-    # Only the two structured-import endpoints accept the larger JSON envelope.
-    location ~* ^/v1/cms/import(?:/preview)?/?$ {
+    # Only structured import and the authenticated MCP endpoint accept 1 MiB.
+    location ~* ^/(?:v1/cms/import(?:/preview)?|mcp)/?$ {
         client_max_body_size 1m;
         proxy_pass http://127.0.0.1:8081;
     }
