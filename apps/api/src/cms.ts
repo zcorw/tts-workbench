@@ -1048,19 +1048,39 @@ export class CmsService {
     if (!row) throw new ApiError(404, "NOT_FOUND");
     return row.snapshot;
   }
-  async readAudio(identity: ReadIdentity, releaseId: string) {
+  private async readAudioRow(
+    identity: ReadIdentity, releaseId: string,
+    mode: "all" | "exists" | "length" | { start: number; end: number },
+  ) {
     uuid.parse(releaseId);
     const values: unknown[] = [];
     const where = this.readWhere(identity, values);
     values.push(releaseId);
+    const releaseParam = values.length;
+    const projection = typeof mode === "string"
+      ? { all: "a.metadata,a.data", exists: "1", length: "octet_length(a.data) AS length" }[mode]
+      : `substring(a.data FROM $${releaseParam + 1}::integer FOR $${releaseParam + 2}::integer) AS data`;
+    if (typeof mode !== "string") values.push(mode.start + 1, mode.end - mode.start + 1);
     const row = (
       await this.pool.query(
-        `SELECT a.metadata,a.data FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id JOIN wb_cms_media a ON a.audio_id=r.audio_id WHERE ${where} AND r.id=$${values.length}`,
+        `SELECT ${projection} FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id JOIN wb_cms_media a ON a.audio_id=r.audio_id WHERE ${where} AND r.id=$${releaseParam}`,
         values,
       )
     ).rows[0];
     if (!row) throw new ApiError(404, "NOT_FOUND");
     return row;
+  }
+  async assertReadAudio(identity: ReadIdentity, releaseId: string) {
+    await this.readAudioRow(identity, releaseId, "exists");
+  }
+  async readAudioLength(identity: ReadIdentity, releaseId: string): Promise<number> {
+    return (await this.readAudioRow(identity, releaseId, "length")).length;
+  }
+  async readAudioSlice(identity: ReadIdentity, releaseId: string, range: { start: number; end: number }): Promise<Buffer> {
+    return (await this.readAudioRow(identity, releaseId, range)).data;
+  }
+  async readAudio(identity: ReadIdentity, releaseId: string): Promise<{ metadata: Record<string, unknown>; data: Buffer }> {
+    return this.readAudioRow(identity, releaseId, "all");
   }
   async rss(identity: ReadIdentity, origin: string) {
     const page = await this.readArticles(identity, { limit: 100 });

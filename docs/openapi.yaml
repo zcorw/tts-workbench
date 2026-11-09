@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Japanese TTS Workbench API
-  version: 1.5.0
+  version: 1.6.0
   description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable.
     CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content
     access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
@@ -11,7 +11,9 @@ info:
     local-position override. 知声 MCP is opt-in at the CMS origin /mcp, using dedicated OAuth
     authorization-code/PKCE grants, not browser cookies or existing read tokens. Browser consent/management
     still requires Session/Origin/CSRF. See docs/CMS_MCP.md for immutable batch IDs and operational
-    boundaries."
+    boundaries. 知阅 device APIs are opt-in on the HTTPS CMS origin. Device requests use a dedicated binding
+    token or a release-scoped media ticket, and bypass browser Session/Origin/CSRF. Browser pairing approval
+    and binding management retain Session/Origin/CSRF."
 servers:
   - url: /
 paths:
@@ -8879,6 +8881,750 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/McpOAuthError"
+  /v1/zhiyue/device/authorize:
+    post:
+      operationId: zhiyueDeviceAuthorize
+      summary: Start 知阅 device pairing
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. An empty JSON object starts a five-minute request. Show only user_code and verification_uri to
+        the user. This route does not use the browser session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        "201":
+          description: Pairing request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueDeviceAuthorization"
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/device/token:
+    post:
+      operationId: zhiyueDeviceClaim
+      summary: Claim an approved 知阅 device binding
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Poll with the private device_code no faster than the advertised interval. Approval is
+        required. Successful exchange consumes the request once and returns a 24-hour device binding.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZhiyueDeviceClaim"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueDeviceBinding"
+        "400":
+          description: Invalid request, pending approval, poll too fast, expired request, or consumed code.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/device/binding:
+    delete:
+      operationId: zhiyueDeviceUnbind
+      summary: Revoke the calling 知阅 binding
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Revokes the binding and its media tickets. A revoked device must pair again.
+      security:
+        - zhiyueDeviceBearer: []
+      responses:
+        "204":
+          description: Current binding revoked.
+        "401":
+          description: Missing, revoked, expired or inactive binding.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/read/articles:
+    get:
+      operationId: zhiyueReadArticles
+      summary: List the current published articles of the binding owner
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Paged newest-first summaries. Only the account associated with the device binding is read.
+        Article bodies, drafts and audio bytes are omitted from the list.
+      security:
+        - zhiyueDeviceBearer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 12
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9999999
+            default: 0
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueArticlePage"
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing, revoked, expired or inactive binding.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/read/articles/{id}:
+    get:
+      operationId: zhiyueReadArticle
+      summary: Read the current publication of an owned article
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. The path id is the article ID. The response contains the frozen publication text and its
+        releaseId.
+      security:
+        - zhiyueDeviceBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueArticle"
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing, revoked, expired or inactive binding.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/read/releases/{id}/audio-ticket:
+    post:
+      operationId: zhiyueIssueAudioTicket
+      summary: Issue a short-lived ticket for published audio
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. The path id is the release ID. Requires an empty JSON object. The selected release must still
+        be current and have owned audio. The ticket expires after at most 150 seconds.
+      security:
+        - zhiyueDeviceBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueAudioTicket"
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing, revoked, expired or inactive binding.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/media/{ticket}:
+    get:
+      operationId: zhiyueReadAudio
+      summary: Play current published MP3 with a scoped media ticket
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. The private ticket in the path grants only this release audio and requires a live device
+        binding and an active owner. A withdrawn or replaced publication is unavailable. Supports one byte
+        range, including open-ended and suffix ranges. No device bearer or browser cookie is needed. Response
+        is no-store. Do not log the ticket or the full request path.
+      security: []
+      parameters:
+        - name: ticket
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{32,128}$
+        - name: Range
+          in: header
+          schema:
+            type: string
+            example: bytes=0-1023
+      responses:
+        "200":
+          description: Complete MP3.
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+                enum:
+                  - bytes
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "206":
+          description: Requested MP3 byte range.
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Range:
+              schema:
+                type: string
+              description: HTTP Content-Range for this single range or the unsatisfied byte range.
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Ticket invalid, expired, or tied to an inactive or revoked binding.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "416":
+          description: Unsatisfiable, malformed or multiple byte ranges. No body.
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Range:
+              schema:
+                type: string
+              description: HTTP Content-Range for this single range or the unsatisfied byte range.
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/account/bindings:
+    get:
+      operationId: zhiyueListBindings
+      summary: List the signed-in account’s active 知阅 bindings
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token.
+        Lists only live bindings, newest first, with no credential plaintext.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: expected_account_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Must equal the current signed-in account, otherwise 409 ACCOUNT_CHANGED.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueBindings"
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Browser session missing or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Origin, CSRF or browser-session authorization rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "ACCOUNT_CHANGED: expected account differs from current session."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/account/approve:
+    post:
+      operationId: zhiyueApproveDevice
+      summary: Approve 知阅 device pairing from the signed-in browser
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. The
+        current account must match expected_account_id. A code already approved by another account, expired,
+        consumed or unknown is rejected.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZhiyueDeviceApproval"
+      responses:
+        "204":
+          description: Code approved for the signed-in account.
+        "400":
+          description: Invalid input or INVALID_OR_EXPIRED_CODE.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Browser session missing or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Origin, CSRF or browser-session authorization rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "ACCOUNT_CHANGED: expected account differs from current session."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/account/bindings/{id}:
+    delete:
+      operationId: zhiyueRevokeBinding
+      summary: Revoke one 知阅 binding for the signed-in account
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token.
+        Revocation and ticket invalidation take effect immediately. A missing or unrelated binding is ignored.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: expected_account_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: Must equal the current signed-in account, otherwise 409 ACCOUNT_CHANGED.
+      responses:
+        "204":
+          description: Owned binding revoked or no matching binding.
+        "400":
+          description: Invalid request shape, input or identifier.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Browser session missing or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Origin, CSRF or browser-session authorization rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "ACCOUNT_CHANGED: expected account differs from current session."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     sessionCookie:
@@ -8904,6 +9650,11 @@ components:
           scopes:
             cms:read: Read own article drafts and taxonomy
             cms:drafts:create: Create private drafts and query batch receipts
+    zhiyueDeviceBearer:
+      type: http
+      scheme: bearer
+      description: 知阅 opaque 24-hour binding credential. Grants only current published reads for its account,
+        release-scoped media tickets and self-revocation.
   schemas:
     Error:
       type: object
@@ -11205,3 +11956,245 @@ components:
       description: SDK JSON-RPC response. tools/call returns content and structuredContent; domain failures set
         isError. Tool arguments and annotations are discovered through tools/list. Batch receipts use
         McpBatchResult.
+    ZhiyueDeviceAuthorization:
+      type: object
+      additionalProperties: false
+      properties:
+        device_code:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+          description: Secret polling code. Keep private.
+        user_code:
+          type: string
+          pattern: ^[23456789ABCDEFGHJKMNPQRSTVWXYZ]{4}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{4}$
+        verification_uri:
+          type: string
+          format: uri
+          description: HTTPS browser approval page on the configured CMS origin.
+        expires_in:
+          type: integer
+          enum:
+            - 300
+          description: Device request lifetime in seconds.
+        interval:
+          type: integer
+          enum:
+            - 5
+          description: Minimum polling interval in seconds.
+      required:
+        - device_code
+        - user_code
+        - verification_uri
+        - expires_in
+        - interval
+    ZhiyueDeviceClaim:
+      type: object
+      additionalProperties: false
+      properties:
+        device_code:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{32,128}$
+      required:
+        - device_code
+    ZhiyueDeviceBinding:
+      type: object
+      additionalProperties: false
+      properties:
+        access_token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+          description: Revocable device credential returned only on successful claim. Never log or include it in URLs.
+        expires_in:
+          type: integer
+          enum:
+            - 86400
+          description: Binding lifetime in seconds (24 hours). No refresh credential.
+        account:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+          required:
+            - id
+            - displayName
+        binding_id:
+          type: string
+          format: uuid
+      required:
+        - access_token
+        - expires_in
+        - account
+        - binding_id
+    ZhiyueDeviceApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        user_code:
+          type: string
+          maxLength: 24
+          description: Eight alphanumeric characters after removing whitespace and hyphens. Case insensitive.
+        expected_account_id:
+          type: string
+          format: uuid
+          description: Must equal the current signed-in account, otherwise 409 ACCOUNT_CHANGED.
+      required:
+        - user_code
+        - expected_account_id
+    ZhiyueBindings:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              id:
+                type: string
+                format: uuid
+              createdAt:
+                type: string
+                format: date-time
+              expiresAt:
+                type: string
+                format: date-time
+            required:
+              - id
+              - createdAt
+              - expiresAt
+      required:
+        - items
+    ZhiyueArticleItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Article ID, stable across replacement of the current publication.
+        title:
+          type: string
+          maxLength: 120
+        publishedAt:
+          type: string
+          format: date-time
+        hasAudio:
+          type: boolean
+      required:
+        - id
+        - title
+        - publishedAt
+        - hasAudio
+    ZhiyueArticlePage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ZhiyueArticleItem"
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+        offset:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - total
+        - limit
+        - offset
+    ZhiyueArticle:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Article ID, stable across replacement of the current publication.
+        title:
+          type: string
+          maxLength: 120
+        publishedAt:
+          type: string
+          format: date-time
+        hasAudio:
+          type: boolean
+        releaseId:
+          type: string
+          format: uuid
+          description: Current publication ID, used for the audio-ticket request.
+        text:
+          type: string
+          maxLength: 10000
+          description: Exact published text, at most 49152 UTF-8 bytes.
+      required:
+        - id
+        - title
+        - publishedAt
+        - hasAudio
+        - releaseId
+        - text
+    ZhiyueAudioTicket:
+      type: object
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Private, short-lived URL for this publication only. Never persist or log it.
+        expires_in:
+          type: integer
+          minimum: 1
+          maximum: 150
+          description: Seconds remaining, capped by the binding expiration.
+      required:
+        - url
+        - expires_in
+    ZhiyueGrantError:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_grant
+            - expired_token
+            - authorization_pending
+            - slow_down
+            - invalid_token
+            - invalid_request
+            - temporarily_unavailable
+      required:
+        - error
+    ZhiyueRateLimitError:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          enum:
+            - slow_down
+        code:
+          type: string
+          enum:
+            - RATE_LIMITED
+        message:
+          type: string
+          enum:
+            - RATE_LIMITED
+      required:
+        - error
+        - code
+        - message

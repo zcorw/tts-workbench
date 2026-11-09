@@ -15,6 +15,7 @@ import { CmsLayout } from './CmsLayout';
 import { CmsMcp } from './features/CmsMcp';
 import { AuthPage } from './AuthPage';
 import { AccountPage } from './AccountPage';
+import { ZhiyueConnectionPage } from './ZhiyueConnectionPage';
 
 const defaultConfig: PublicConfig = {
   registrationOpen: false,
@@ -109,7 +110,14 @@ export function App({ services }: { services: Services }) {
     }
   }, [location.pathname, location.search, navigate]);
   useEffect(() => {
-    document.title = `${authPath ? '登录' : location.pathname.startsWith('/read') ? '阅读库' : '内容管理'} · 知声`;
+    const page = authPath
+      ? '登录'
+      : location.pathname === '/connections/zhiyue'
+        ? '知阅连接'
+        : location.pathname.startsWith('/read')
+          ? '阅读库'
+          : '内容管理';
+    document.title = `${page} · 知声`;
   }, [authPath, location.pathname]);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     if (bypass.current) {
@@ -190,6 +198,8 @@ export function App({ services }: { services: Services }) {
             />
           ) : location.pathname === '/connections/mcp' ? (
             <CmsMcp key={account.id} accountId={account.id} />
+          ) : location.pathname === '/connections/zhiyue' ? (
+            <ZhiyueConnectionPage key={account.id} account={account} />
           ) : (
             <CmsPage
               key={account.id}

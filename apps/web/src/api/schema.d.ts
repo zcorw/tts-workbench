@@ -993,6 +993,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/zhiyue/device/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start 知阅 device pairing
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. An empty JSON object starts a five-minute request. Show only user_code and verification_uri to the user. This route does not use the browser session.
+         */
+        post: operations["zhiyueDeviceAuthorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim an approved 知阅 device binding
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange consumes the request once and returns a 24-hour device binding.
+         */
+        post: operations["zhiyueDeviceClaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke the calling 知阅 binding
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Revokes the binding and its media tickets. A revoked device must pair again.
+         */
+        delete: operations["zhiyueDeviceUnbind"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current published articles of the binding owner
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Paged newest-first summaries. Only the account associated with the device binding is read. Article bodies, drafts and audio bytes are omitted from the list.
+         */
+        get: operations["zhiyueReadArticles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/articles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current publication of an owned article
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The path id is the article ID. The response contains the frozen publication text and its releaseId.
+         */
+        get: operations["zhiyueReadArticle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/releases/{id}/audio-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a short-lived ticket for published audio
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The path id is the release ID. Requires an empty JSON object. The selected release must still be current and have owned audio. The ticket expires after at most 150 seconds.
+         */
+        post: operations["zhiyueIssueAudioTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/media/{ticket}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Play current published MP3 with a scoped media ticket
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The private ticket in the path grants only this release audio and requires a live device binding and an active owner. A withdrawn or replaced publication is unavailable. Supports one byte range, including open-ended and suffix ranges. No device bearer or browser cookie is needed. Response is no-store. Do not log the ticket or the full request path.
+         */
+        get: operations["zhiyueReadAudio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signed-in account’s active 知阅 bindings
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. Lists only live bindings, newest first, with no credential plaintext.
+         */
+        get: operations["zhiyueListBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve 知阅 device pairing from the signed-in browser
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. The current account must match expected_account_id. A code already approved by another account, expired, consumed or unknown is rejected.
+         */
+        post: operations["zhiyueApproveDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/bindings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke one 知阅 binding for the signed-in account
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. Revocation and ticket invalidation take effect immediately. A missing or unrelated binding is ignored.
+         */
+        delete: operations["zhiyueRevokeBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1792,6 +1992,120 @@ export interface components {
         /** @description SDK JSON-RPC response. tools/call returns content and structuredContent; domain failures set isError. Tool arguments and annotations are discovered through tools/list. Batch receipts use McpBatchResult. */
         McpRpcResponse: {
             [key: string]: unknown;
+        };
+        ZhiyueDeviceAuthorization: {
+            /** @description Secret polling code. Keep private. */
+            device_code: string;
+            user_code: string;
+            /**
+             * Format: uri
+             * @description HTTPS browser approval page on the configured CMS origin.
+             */
+            verification_uri: string;
+            /**
+             * @description Device request lifetime in seconds.
+             * @enum {integer}
+             */
+            expires_in: 300;
+            /**
+             * @description Minimum polling interval in seconds.
+             * @enum {integer}
+             */
+            interval: 5;
+        };
+        ZhiyueDeviceClaim: {
+            device_code: string;
+        };
+        ZhiyueDeviceBinding: {
+            /** @description Revocable device credential returned only on successful claim. Never log or include it in URLs. */
+            access_token: string;
+            /**
+             * @description Binding lifetime in seconds (24 hours). No refresh credential.
+             * @enum {integer}
+             */
+            expires_in: 86400;
+            account: {
+                /** Format: uuid */
+                id: string;
+                displayName: string;
+            };
+            /** Format: uuid */
+            binding_id: string;
+        };
+        ZhiyueDeviceApproval: {
+            /** @description Eight alphanumeric characters after removing whitespace and hyphens. Case insensitive. */
+            user_code: string;
+            /**
+             * Format: uuid
+             * @description Must equal the current signed-in account, otherwise 409 ACCOUNT_CHANGED.
+             */
+            expected_account_id: string;
+        };
+        ZhiyueBindings: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                expiresAt: string;
+            }[];
+        };
+        ZhiyueArticleItem: {
+            /**
+             * Format: uuid
+             * @description Article ID, stable across replacement of the current publication.
+             */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            publishedAt: string;
+            hasAudio: boolean;
+        };
+        ZhiyueArticlePage: {
+            items: components["schemas"]["ZhiyueArticleItem"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        ZhiyueArticle: {
+            /**
+             * Format: uuid
+             * @description Article ID, stable across replacement of the current publication.
+             */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            publishedAt: string;
+            hasAudio: boolean;
+            /**
+             * Format: uuid
+             * @description Current publication ID, used for the audio-ticket request.
+             */
+            releaseId: string;
+            /** @description Exact published text, at most 49152 UTF-8 bytes. */
+            text: string;
+        };
+        ZhiyueAudioTicket: {
+            /**
+             * Format: uri
+             * @description Private, short-lived URL for this publication only. Never persist or log it.
+             */
+            url: string;
+            /** @description Seconds remaining, capped by the binding expiration. */
+            expires_in: number;
+        };
+        ZhiyueGrantError: {
+            /** @enum {string} */
+            error: "invalid_grant" | "expired_token" | "authorization_pending" | "slow_down" | "invalid_token" | "invalid_request" | "temporarily_unavailable";
+        };
+        ZhiyueRateLimitError: {
+            /** @enum {string} */
+            error: "slow_down";
+            /** @enum {string} */
+            code: "RATE_LIMITED";
+            /** @enum {string} */
+            message: "RATE_LIMITED";
         };
     };
     responses: never;
@@ -8190,6 +8504,825 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceAuthorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Pairing request created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceAuthorization"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceClaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZhiyueDeviceClaim"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceBinding"];
+                };
+            };
+            /** @description Invalid request, pending approval, poll too fast, expired request, or consumed code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceUnbind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current binding revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadArticles: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueArticlePage"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueArticle"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueIssueAudioTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueAudioTicket"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadAudio: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+            };
+            path: {
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete MP3. */
+            200: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": string;
+                };
+            };
+            /** @description Requested MP3 byte range. */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    /** @description HTTP Content-Range for this single range or the unsatisfied byte range. */
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": string;
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Ticket invalid, expired, or tied to an inactive or revoked binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unsatisfiable, malformed or multiple byte ranges. No body. */
+            416: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    /** @description HTTP Content-Range for this single range or the unsatisfied byte range. */
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueListBindings: {
+        parameters: {
+            query: {
+                expected_account_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueBindings"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueApproveDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZhiyueDeviceApproval"];
+            };
+        };
+        responses: {
+            /** @description Code approved for the signed-in account. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input or INVALID_OR_EXPIRED_CODE. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueRevokeBinding: {
+        parameters: {
+            query: {
+                expected_account_id: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned binding revoked or no matching binding. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

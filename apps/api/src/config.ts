@@ -41,6 +41,10 @@ export const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  CMS_ZHIYUE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   CMS_MCP_ENABLED: z
     .enum(["true", "false"])
     .default("false")
@@ -71,6 +75,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("Production CMS_PUBLIC_ORIGIN requires HTTPS");
   if (config.CMS_DIST && config.CMS_PORT === config.PORT)
     throw new Error("CMS_PORT and PORT must be different");
+  if (config.CMS_ZHIYUE_ENABLED && (!config.CMS_DIST || !config.CMS_PUBLIC_ORIGIN?.startsWith("https://")))
+    throw new Error("Zhiyue device binding requires a separate HTTPS CMS site");
   if (config.CMS_MCP_ENABLED) {
     if (
       !config.CMS_PUBLIC_ORIGIN ||
