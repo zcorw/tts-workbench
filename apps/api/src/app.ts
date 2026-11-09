@@ -48,6 +48,11 @@ import { SpeechService } from "./speech.js";
 import { ArticleService } from "./articles.js";
 import { CmsService } from "./cms.js";
 import { createCmsRouter } from "./cms-http.js";
+import { ZhiyueDeviceService } from "./zhiyue-device.js";
+import { createZhiyueAccountRouter, createZhiyueDeviceRouter } from "./zhiyue-http.js";
+import { McpBatchService } from "./mcp-batch.js";
+import { McpOAuthService } from "./mcp-oauth.js";
+import { createMcpRouter, createMcpAccountRouter } from "./mcp-http.js";
 import { GenerationAdmission } from "./generation-admission.js";
 import { AudioBatchService } from "./audio-batches.js";
 import { createAudioBatchRouter } from "./audio-batches-http.js";
@@ -65,10 +70,22 @@ export interface State {
   speech: SpeechService;
   articles: ArticleService;
   cms: CmsService;
+  mcpBatch: McpBatchService;
+  mcpOAuth: McpOAuthService;
   audioBatches: AudioBatchService;
   generationAdmission: GenerationAdmission;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
+  const parserError =
+    error instanceof Error
+      ? (error as Error & {
+          status?: number;
+          statusCode?: number;
+          expose?: boolean;
+          type?: string;
+          code?: string;
+        })
+      : undefined;
   let status = 503,
     code = "DEPENDENCY_UNAVAILABLE";
   if (error instanceof ApiError) {
@@ -129,6 +146,26 @@ export function sendError(error: unknown, req: Request, res: Response) {
   } else if ((error as any)?.type === "entity.too.large") {
     status = 413;
     code = "PAYLOAD_TOO_LARGE";
+  } else if (
+    parserError?.expose === true &&
+    parserError.status === 415 &&
+    parserError.statusCode === 415 &&
+    ["encoding.unsupported", "charset.unsupported"].includes(
+      parserError.type ?? "",
+    )
+  ) {
+    status = 415;
+    code = "UNSUPPORTED_MEDIA_TYPE";
+  } else if (
+    parserError?.expose === true &&
+    parserError.status === 400 &&
+    parserError.statusCode === 400 &&
+    ["Z_DATA_ERROR", "Z_BUF_ERROR"].includes(parserError.code ?? "")
+  ) {
+    // body-parser wraps zlib failures as exposed 400 errors. Only these known
+    // parser failures get client status; an arbitrary internal status stays 503.
+    status = 400;
+    code = "INVALID_REQUEST";
   } else if (error instanceof SyntaxError) {
     status = 400;
     code = "INVALID_REQUEST";
@@ -439,6 +476,9 @@ export async function createApplication(
     articles,
     config.CMS_READ_TOKENS_ENABLED ?? false,
   );
+  const zhiyueOrigin = config.CMS_PUBLIC_ORIGIN;
+  const zhiyue = config.CMS_ZHIYUE_ENABLED && config.CMS_DIST && zhiyueOrigin?.startsWith("https://")
+    ? new ZhiyueDeviceService(pool) : undefined;
   const generationAdmission = new GenerationAdmission(pool);
   const audioBatches = new AudioBatchService(
     pool,
@@ -457,6 +497,8 @@ export async function createApplication(
     speech,
     articles,
     cms,
+    mcpBatch: new McpBatchService(pool, articles, cms),
+    mcpOAuth: new McpOAuthService(pool, articles, config),
     audioBatches,
     generationAdmission,
   };
@@ -491,6 +533,23 @@ export async function createApplication(
     });
     next();
   });
+  server.use("/v1/zhiyue", (req: Request, res: Response, next: NextFunction) => {
+    if (!zhiyue || !sites.isCms(req)) return sendError(new ApiError(404, "NOT_FOUND"), req, res);
+    next();
+  });
+  if (zhiyue && zhiyueOrigin) {
+    // 只有单独的设备路由绕过网页 Cookie/CSRF 流程。
+    server.use("/v1/zhiyue", createZhiyueDeviceRouter(zhiyue, cms, zhiyueOrigin, sites.isCms));
+  }
+  server.use(
+    createMcpRouter(
+      config,
+      state.mcpOAuth,
+      state.mcpBatch,
+      cms,
+      (req) => !config.CMS_DIST || sites.isCms(req),
+    ),
+  );
   server.use((req: Request, res: Response, next: NextFunction) => {
     const expectedOrigin = sites.origin(req);
     if (/^\/v1(?:\/|$)/i.test(req.path) && !expectedOrigin)
@@ -554,6 +613,17 @@ export async function createApplication(
     next();
   });
   server.use("/v1", csrf.csrfSynchronisedProtection);
+  if (zhiyue) {
+    server.use("/v1/zhiyue/account", createZhiyueAccountRouter(zhiyue, (req) => requireAccount(req).id, sites.isCms));
+  }
+  server.use(
+    "/v1/cms/mcp",
+    createMcpAccountRouter(
+      config,
+      state.mcpOAuth,
+      (req) => requireAccount(req).id,
+    ),
+  );
   server.use((req: Request, res: Response, next: NextFunction) => {
     if (
       req.method !== "POST" ||

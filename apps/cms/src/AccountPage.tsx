@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { profileSchema } from '@workbench/forms';
 import { ErrorNotice, useServices } from '@workbench/components/shared';
 import { messageOf, type Account } from '@workbench/types';
@@ -141,6 +142,9 @@ export function AccountPage({ account, onUpdate, onLogout }: AccountPageProps) {
       </form>
 
       <p>内容、发布记录和账户资料由平台保存。</p>
+      <p>
+        <Link to="/connections/zhiyue">管理知阅连接</Link>
+      </p>
       <button
         id="logoutButton"
         className="button secondary"

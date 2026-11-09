@@ -829,6 +829,434 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cms/mcp/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpAuthorization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        post: operations["cmsMcpConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        get: operations["cmsMcpGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cms/mcp/grants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 知声 MCP owner consent / connections
+         * @description Default disabled (404). Current Session required; all mutations require matching Origin and X-CSRF-Token. No token plaintext in management responses. All responses no-store.
+         */
+        delete: operations["cmsMcpRevokeGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpResourceMetadataRoot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpResourceMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-authorization-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 知声 OAuth discovery */
+        get: operations["cmsMcpOAuthMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate predefined public client and PKCE, then open browser consent */
+        get: operations["cmsMcpBeginAuthorization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 OAuth public-client token endpoint
+         * @description Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth errors. Never log request/response bodies.
+         */
+        post: operations["cmsMcpExchangeToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/oauth/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 OAuth public-client token endpoint
+         * @description Dedicated OAuth protocol endpoint (8 KiB), not Session/CSRF. Exact client/resource binding, PKCE S256, rotating refresh credentials; no administrator key. Invalid grants return sanitized OAuth errors. Never log request/response bodies.
+         */
+        post: operations["cmsMcpRevokeToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 知声 stateless Streamable HTTP MCP
+         * @description CMS listener only in dual-entry mode. Requires dedicated OAuth bearer on every request; browser cookies and read tokens never authorize. 1 MiB JSON envelope, 20 drafts, one batch/account and two batches/process, 120 requests/IP/minute. Uses SDK 1.32.2, protocol negotiation through 2025-11-25. No SSE GET stream; GET/DELETE return 405. Notifications return 202. tools/list is authoritative for tool schemas.
+         */
+        post: operations["cmsMcpMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start 知阅 device pairing
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. An empty JSON object starts a five-minute request. Show only user_code and verification_uri to the user. This route does not use the browser session.
+         */
+        post: operations["zhiyueDeviceAuthorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim an approved 知阅 device binding
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange consumes the request once and returns a 24-hour device binding.
+         */
+        post: operations["zhiyueDeviceClaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke the calling 知阅 binding
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Revokes the binding and its media tickets. A revoked device must pair again.
+         */
+        delete: operations["zhiyueDeviceUnbind"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current published articles of the binding owner
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Paged newest-first summaries. Only the account associated with the device binding is read. Article bodies, drafts and audio bytes are omitted from the list.
+         */
+        get: operations["zhiyueReadArticles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/articles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current publication of an owned article
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The path id is the article ID. The response contains the frozen publication text and its releaseId.
+         */
+        get: operations["zhiyueReadArticle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/read/releases/{id}/audio-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a short-lived ticket for published audio
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The path id is the release ID. Requires an empty JSON object. The selected release must still be current and have owned audio. The ticket expires after at most 150 seconds.
+         */
+        post: operations["zhiyueIssueAudioTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/media/{ticket}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Play current published MP3 with a scoped media ticket
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The private ticket in the path grants only this release audio and requires a live device binding and an active owner. A withdrawn or replaced publication is unavailable. Supports one byte range, including open-ended and suffix ranges. No device bearer or browser cookie is needed. Response is no-store. Do not log the ticket or the full request path.
+         */
+        get: operations["zhiyueReadAudio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the signed-in account’s active 知阅 bindings
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. Lists only live bindings, newest first, with no credential plaintext.
+         */
+        get: operations["zhiyueListBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve 知阅 device pairing from the signed-in browser
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. The current account must match expected_account_id. A code already approved by another account, expired, consumed or unknown is rejected.
+         */
+        post: operations["zhiyueApproveDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/account/bindings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke one 知阅 binding for the signed-in account
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Uses the current browser session; mutations require the matching Origin and X-CSRF-Token. Revocation and ticket invalidation take effect immediately. A missing or unrelated binding is ignored.
+         */
+        delete: operations["zhiyueRevokeBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1587,6 +2015,243 @@ export interface components {
         };
         AudioBatchPage: {
             items: components["schemas"]["AudioBatch"][];
+        };
+        McpAuthorization: {
+            /** @enum {string} */
+            response_type: "code";
+            client_id: string;
+            /** Format: uri */
+            redirect_uri: string;
+            /** Format: uri */
+            resource: string;
+            scope: string;
+            state?: string;
+            code_challenge: string;
+            /** @enum {string} */
+            code_challenge_method: "S256";
+        };
+        McpConfig: {
+            clientId: string;
+            /** Format: uri */
+            resource: string;
+        };
+        McpAuthorizationView: {
+            clientId: string;
+            /** Format: uri */
+            redirectUri: string;
+            scopes: string[];
+            /** Format: uri */
+            resource: string;
+        };
+        McpConsent: {
+            authorization: components["schemas"]["McpAuthorization"];
+            approve: boolean;
+        };
+        McpRedirect: {
+            /**
+             * Format: uri
+             * @description Exact allowlisted callback; includes short-lived authorization code or access_denied, issuer and original state. Never log the URL.
+             */
+            redirectUrl: string;
+        };
+        McpGrant: {
+            /** Format: uuid */
+            id: string;
+            clientId: string;
+            scopes: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            revokedAt: string | null;
+        };
+        McpGrantPage: {
+            items: components["schemas"]["McpGrant"][];
+        };
+        McpDraftInput: {
+            requestId: string;
+            /** @description Trim before validation/storage; 1–120 Unicode code points. No unique-title constraint. */
+            title: string;
+            /** @description Original text, never trimmed, normalized or rewritten. 0–10000 Unicode code points AND at most 49152 UTF-8 bytes. Empty/whitespace drafts may be saved. Reject U+0000–U+0008, U+000B–U+001F and U+007F–U+009F; tab and LF allowed. Synthesis separately requires non-whitespace. */
+            text: string;
+            summary?: string;
+            /** Format: uuid */
+            categoryId?: string | null;
+            tagIds?: string[];
+        };
+        McpBatchInput: {
+            batchId: string;
+            items: components["schemas"]["McpDraftInput"][];
+        };
+        McpItemResult: {
+            requestId: string;
+            /** @enum {string} */
+            status: "created" | "error" | "pending";
+            /** Format: uuid */
+            articleId?: string;
+            slug?: string;
+            revision?: number;
+            cmsRevision?: number;
+            code?: string;
+            retryable?: boolean;
+            /** Format: uri */
+            editUrl?: string;
+        };
+        McpBatchResult: {
+            batchId: string;
+            items: components["schemas"]["McpItemResult"][];
+            created: number;
+            failed: number;
+            pending: number;
+        };
+        McpTokenRequest: {
+            /** @enum {string} */
+            grant_type: "authorization_code" | "refresh_token";
+            client_id: string;
+            resource: string;
+            code?: string;
+            redirect_uri?: string;
+            code_verifier?: string;
+            refresh_token?: string;
+        };
+        McpTokenResponse: {
+            access_token: string;
+            refresh_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            expires_in: number;
+            scope: string;
+        };
+        McpOAuthError: {
+            error: string;
+        };
+        McpRpcRequest: {
+            /** @enum {string} */
+            jsonrpc: "2.0";
+            id?: string | number;
+            method: string;
+            params?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description SDK JSON-RPC response. tools/call returns content and structuredContent; domain failures set isError. Tool arguments and annotations are discovered through tools/list. Batch receipts use McpBatchResult. */
+        McpRpcResponse: {
+            [key: string]: unknown;
+        };
+        ZhiyueDeviceAuthorization: {
+            /** @description Secret polling code. Keep private. */
+            device_code: string;
+            user_code: string;
+            /**
+             * Format: uri
+             * @description HTTPS browser approval page on the configured CMS origin.
+             */
+            verification_uri: string;
+            /**
+             * @description Device request lifetime in seconds.
+             * @enum {integer}
+             */
+            expires_in: 300;
+            /**
+             * @description Minimum polling interval in seconds.
+             * @enum {integer}
+             */
+            interval: 5;
+        };
+        ZhiyueDeviceClaim: {
+            device_code: string;
+        };
+        ZhiyueDeviceBinding: {
+            /** @description Revocable device credential returned only on successful claim. Never log or include it in URLs. */
+            access_token: string;
+            /**
+             * @description Binding lifetime in seconds (24 hours). No refresh credential.
+             * @enum {integer}
+             */
+            expires_in: 86400;
+            account: {
+                /** Format: uuid */
+                id: string;
+                displayName: string;
+            };
+            /** Format: uuid */
+            binding_id: string;
+        };
+        ZhiyueDeviceApproval: {
+            /** @description Eight alphanumeric characters after removing whitespace and hyphens. Case insensitive. */
+            user_code: string;
+            /**
+             * Format: uuid
+             * @description Must equal the current signed-in account, otherwise 409 ACCOUNT_CHANGED.
+             */
+            expected_account_id: string;
+        };
+        ZhiyueBindings: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                expiresAt: string;
+            }[];
+        };
+        ZhiyueArticleItem: {
+            /**
+             * Format: uuid
+             * @description Article ID, stable across replacement of the current publication.
+             */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            publishedAt: string;
+            hasAudio: boolean;
+        };
+        ZhiyueArticlePage: {
+            items: components["schemas"]["ZhiyueArticleItem"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        ZhiyueArticle: {
+            /**
+             * Format: uuid
+             * @description Article ID, stable across replacement of the current publication.
+             */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            publishedAt: string;
+            hasAudio: boolean;
+            /**
+             * Format: uuid
+             * @description Current publication ID, used for the audio-ticket request.
+             */
+            releaseId: string;
+            /** @description Exact published text, at most 49152 UTF-8 bytes. */
+            text: string;
+        };
+        ZhiyueAudioTicket: {
+            /**
+             * Format: uri
+             * @description Private, short-lived URL for this publication only. Never persist or log it.
+             */
+            url: string;
+            /** @description Seconds remaining, capped by the binding expiration. */
+            expires_in: number;
+        };
+        ZhiyueGrantError: {
+            /** @enum {string} */
+            error: "invalid_grant" | "expired_token" | "authorization_pending" | "slow_down" | "invalid_token" | "invalid_request" | "temporarily_unavailable";
+        };
+        ZhiyueRateLimitError: {
+            /** @enum {string} */
+            error: "slow_down";
+            /** @enum {string} */
+            code: "RATE_LIMITED";
+            /** @enum {string} */
+            message: "RATE_LIMITED";
         };
     };
     responses: {
@@ -7201,6 +7866,1731 @@ export interface operations {
                 headers: {
                     "X-Request-Id"?: string;
                     "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpConfig"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpAuthorization: {
+        parameters: {
+            query: {
+                response_type: "code";
+                client_id: string;
+                redirect_uri: string;
+                resource: string;
+                scope: string;
+                state?: string;
+                code_challenge: string;
+                code_challenge_method: "S256";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpAuthorizationView"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpConsent"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRedirect"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGrantPage"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpRevokeGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned grant revoked; subsequent MCP calls fail immediately. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpResourceMetadataRoot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpResourceMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpBeginAuthorization: {
+        parameters: {
+            query: {
+                response_type: "code";
+                client_id: string;
+                redirect_uri: string;
+                resource: string;
+                scope: string;
+                state?: string;
+                code_challenge: string;
+                code_challenge_method: "S256";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to same-origin /connections/mcp; login then explicit consent required. */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cmsMcpExchangeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["McpTokenRequest"];
+                "application/json": components["schemas"]["McpTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpTokenResponse"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    cmsMcpRevokeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    token: string;
+                    client_id: string;
+                };
+                "application/json": {
+                    token: string;
+                    client_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Token grant revoked or unknown token ignored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    cmsMcpMessage: {
+        parameters: {
+            query?: never;
+            header: {
+                Accept: string;
+                "MCP-Protocol-Version"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["McpRpcRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRpcResponse"];
+                };
+            };
+            /** @description Notification accepted, no body */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpRpcResponse"];
+                };
+            };
+            /** @description Success */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description POST only */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled/not owned, validation, authorization, conflict, limits or dependency failure; content is never echoed. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpOAuthError"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceAuthorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Pairing request created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceAuthorization"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceClaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZhiyueDeviceClaim"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceBinding"];
+                };
+            };
+            /** @description Invalid request, pending approval, poll too fast, expired request, or consumed code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceUnbind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current binding revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadArticles: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueArticlePage"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueArticle"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueIssueAudioTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueAudioTicket"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueReadAudio: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+            };
+            path: {
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete MP3. */
+            200: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": string;
+                };
+            };
+            /** @description Requested MP3 byte range. */
+            206: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    /** @description HTTP Content-Range for this single range or the unsatisfied byte range. */
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": string;
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Ticket invalid, expired, or tied to an inactive or revoked binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unsatisfiable, malformed or multiple byte ranges. No body. */
+            416: {
+                headers: {
+                    "Accept-Ranges"?: "bytes";
+                    /** @description HTTP Content-Range for this single range or the unsatisfied byte range. */
+                    "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueListBindings: {
+        parameters: {
+            query: {
+                expected_account_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueBindings"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueApproveDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZhiyueDeviceApproval"];
+            };
+        };
+        responses: {
+            /** @description Code approved for the signed-in account. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input or INVALID_OR_EXPIRED_CODE. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueRevokeBinding: {
+        parameters: {
+            query: {
+                expected_account_id: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned binding revoked or no matching binding. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Browser session missing or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin, CSRF or browser-session authorization rejected. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description ACCOUNT_CHANGED: expected account differs from current session. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

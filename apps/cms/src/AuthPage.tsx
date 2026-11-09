@@ -93,7 +93,7 @@ export function AuthPage({
         await services.register(data.login, data.password, data.displayName);
         if (!isCurrent()) return;
         setFields((current) => ({ ...current, password: '', confirm: '' }));
-        notify('账户已创建，请登录内容库。');
+        notify('账户已创建，请登录知声。');
         navigate('/login', { replace: true });
       } else {
         const account = await services.login(data.login, data.password);
@@ -116,11 +116,11 @@ export function AuthPage({
   return (
     <main id="authView" className="site-auth">
       <section className="site-card" aria-labelledby="authTitle">
-        <Link to="/login" className="site-brand" aria-label="内容库登录">
-          <strong>内容库</strong>
+        <Link to="/login" className="site-brand" aria-label="知声登录">
+          <strong>知声</strong>
           <span>CONTENT DESK</span>
         </Link>
-        <h1 id="authTitle">{closed ? '账户注册暂未开放' : register ? '创建账户' : '登录内容库'}</h1>
+        <h1 id="authTitle">{closed ? '账户注册暂未开放' : register ? '创建账户' : '登录知声'}</h1>
         <p>{closed ? '请联系维护者开通账户。' : '管理文章、整理内容，准备下一次发布。'}</p>
         {notice && (
           <p id="sessionNotice" role="status">

@@ -577,45 +577,52 @@ export class CmsService {
   }
   async create(owner: string, input: unknown) {
     const dto = createSchema.parse(input);
-    return this.write(owner, async (c) => {
-      if (dto.requestId) {
-        const existing = (
-          await c.query("SELECT account_id FROM wb_articles WHERE id=$1", [
-            dto.requestId,
-          ])
-        ).rows[0];
-        if (existing) {
-          if (existing.account_id !== owner)
-            throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
-          const current = await this.detail(c, owner, dto.requestId);
-          const metadata: Meta = {
-            ...dto.cms,
-            slug: dto.cms.slug ?? current.cms.slug,
-          };
-          if (
-            current.revision !== 1 ||
-            current.cms.revision !== 1 ||
-            current.title !== dto.title ||
-            current.text !== dto.text ||
-            !this.same(current.cms, metadata)
-          )
-            throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
-          return current;
-        }
+    return this.write(owner, (c) => this.saveNewArticle(c, owner, dto));
+  }
+  // The caller must hold ArticleService.transaction's account lock. MCP saves
+  // its idempotency receipt in this same transaction as the article and metadata.
+  async createInTransaction(c: PoolClient, owner: string, input: unknown) {
+    return this.saveNewArticle(c, owner, createSchema.parse(input));
+  }
+  private async saveNewArticle(
+    c: PoolClient,
+    owner: string,
+    dto: z.output<typeof createSchema>,
+  ) {
+    if (dto.requestId) {
+      const existing = (
+        await c.query("SELECT account_id FROM wb_articles WHERE id=$1", [
+          dto.requestId,
+        ])
+      ).rows[0];
+      if (existing) {
+        if (existing.account_id !== owner)
+          throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
+        const current = await this.detail(c, owner, dto.requestId);
+        const metadata: Meta = {
+          ...dto.cms,
+          slug: dto.cms.slug ?? current.cms.slug,
+        };
+        if (
+          current.revision !== 1 ||
+          current.cms.revision !== 1 ||
+          current.title !== dto.title ||
+          current.text !== dto.text ||
+          !this.same(current.cms, metadata)
+        )
+          throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
+        return current;
       }
-      const article = await this.articles.createInTransaction(
-        c,
-        owner,
-        {
-          title: dto.title,
-          text: dto.text,
-        },
-        dto.requestId,
-      );
-      const id = article.id as string;
-      await this.saveMeta(c, owner, id, dto.cms, 0);
-      return this.detail(c, owner, id);
-    });
+    }
+    const article = await this.articles.createInTransaction(
+      c,
+      owner,
+      { title: dto.title, text: dto.text },
+      dto.requestId,
+    );
+    const id = article.id as string;
+    await this.saveMeta(c, owner, id, dto.cms, 0);
+    return this.detail(c, owner, id);
   }
   async update(owner: string, id: string, input: unknown) {
     uuid.parse(id);
@@ -1146,19 +1153,39 @@ export class CmsService {
     if (!row) throw new ApiError(404, "NOT_FOUND");
     return row.snapshot;
   }
-  async readAudio(identity: ReadIdentity, releaseId: string) {
+  private async readAudioRow(
+    identity: ReadIdentity, releaseId: string,
+    mode: "all" | "exists" | "length" | { start: number; end: number },
+  ) {
     uuid.parse(releaseId);
     const values: unknown[] = [];
     const where = this.readWhere(identity, values);
     values.push(releaseId);
+    const releaseParam = values.length;
+    const projection = typeof mode === "string"
+      ? { all: "a.metadata,a.data", exists: "1", length: "octet_length(a.data) AS length" }[mode]
+      : `substring(a.data FROM $${releaseParam + 1}::integer FOR $${releaseParam + 2}::integer) AS data`;
+    if (typeof mode !== "string") values.push(mode.start + 1, mode.end - mode.start + 1);
     const row = (
       await this.pool.query(
-        `SELECT a.metadata,a.data FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id JOIN wb_cms_media a ON a.audio_id=r.audio_id WHERE ${where} AND r.id=$${values.length}`,
+        `SELECT ${projection} FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id JOIN wb_cms_media a ON a.audio_id=r.audio_id WHERE ${where} AND r.id=$${releaseParam}`,
         values,
       )
     ).rows[0];
     if (!row) throw new ApiError(404, "NOT_FOUND");
     return row;
+  }
+  async assertReadAudio(identity: ReadIdentity, releaseId: string) {
+    await this.readAudioRow(identity, releaseId, "exists");
+  }
+  async readAudioLength(identity: ReadIdentity, releaseId: string): Promise<number> {
+    return (await this.readAudioRow(identity, releaseId, "length")).length;
+  }
+  async readAudioSlice(identity: ReadIdentity, releaseId: string, range: { start: number; end: number }): Promise<Buffer> {
+    return (await this.readAudioRow(identity, releaseId, range)).data;
+  }
+  async readAudio(identity: ReadIdentity, releaseId: string): Promise<{ metadata: Record<string, unknown>; data: Buffer }> {
+    return this.readAudioRow(identity, releaseId, "all");
   }
   async rss(identity: ReadIdentity, origin: string) {
     const page = await this.readArticles(identity, { limit: 100 });
