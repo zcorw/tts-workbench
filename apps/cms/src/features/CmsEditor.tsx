@@ -44,14 +44,16 @@ function CmsFields({
   onChange,
   taxonomy,
   prefix = 'cms',
+  locked = false,
 }: {
   draft: CmsDraft;
   onChange: (d: CmsDraft) => void;
   taxonomy?: Taxonomy;
   prefix?: string;
+  locked?: boolean;
 }) {
   return (
-    <div className="cms-fields">
+    <fieldset className="cms-fields cms-editor-inputs" disabled={locked}>
       <label className="cms-field">
         标题
         <input
@@ -73,31 +75,21 @@ function CmsFields({
       <p className="small-note">
         {[...draft.text].length} / 10000 字符；保留原文和换行。个人读法由原工作台管理。
       </p>
-      <div className="cms-two-columns">
-        <label className="cms-field">
-          链接标识
-          <input
-            id={`${prefix}Slug`}
-            value={draft.slug}
-            onChange={(e) => onChange({ ...draft, slug: e.target.value })}
-          />
-        </label>
-        <label className="cms-field">
-          栏目
-          <select
-            id={`${prefix}Category`}
-            value={draft.categoryId ?? ''}
-            onChange={(e) => onChange({ ...draft, categoryId: e.target.value || null })}
-          >
-            <option value="">未分类</option>
-            {categoryEntries(taxonomy?.categories ?? []).map(({ category, path }) => (
-              <option key={category.id} value={category.id}>
-                {path.join(' / ')}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label className="cms-field">
+        栏目
+        <select
+          id={`${prefix}Category`}
+          value={draft.categoryId ?? ''}
+          onChange={(e) => onChange({ ...draft, categoryId: e.target.value || null })}
+        >
+          <option value="">未分类</option>
+          {categoryEntries(taxonomy?.categories ?? []).map(({ category, path }) => (
+            <option key={category.id} value={category.id}>
+              {path.join(' / ')}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="cms-field">
         摘要
         <textarea
@@ -128,7 +120,26 @@ function CmsFields({
         ))}
         {!taxonomy?.tags.length && <span className="small-note">可在分类管理页添加标签。</span>}
       </fieldset>
-    </div>
+      <details className="cms-advanced" id={`${prefix}Advanced`}>
+        <summary>高级设置</summary>
+        <label className="cms-field">
+          链接标识（可选）
+          <input
+            id={`${prefix}Slug`}
+            value={draft.slug}
+            maxLength={120}
+            placeholder="留空自动生成；已有标识保持不变"
+            aria-describedby={`${prefix}SlugHint`}
+            onChange={(e) => onChange({ ...draft, slug: e.target.value })}
+          />
+        </label>
+        <p id={`${prefix}SlugHint`} className="small-note">
+          无需填写或翻译标题，保存时自动分配唯一标识。修改标题不会改变链接；已有标识留空时保持原样。
+          自定义可用小写英文字母、数字和单个连字符，最多 120
+          个字符。修改草稿标识不会自动改变已发布快照。
+        </p>
+      </details>
+    </fieldset>
   );
 }
 export function CmsEditor({
@@ -350,7 +361,19 @@ export function CmsEditor({
       <ErrorNotice
         message={doc.error || actionError || (taxonomy.error ? messageOf(taxonomy.error) : '')}
       />
-      <CmsFields draft={doc.draft} onChange={doc.edit} taxonomy={taxonomy.data} />
+      {doc.createPending && !doc.saving && (
+        <p className="cms-warning" role="status" id="cmsCreatePending">
+          新建保存结果尚未确认，输入已保留并暂时锁定。请使用下方“核对并恢复这次保存”，以相同请求恢复，避免重复文章。
+          恢复信息只保留在当前浏览器内存；刷新或关闭前请先核对内容列表。
+        </p>
+      )}
+      <CmsFields
+        key={id}
+        draft={doc.draft}
+        onChange={doc.edit}
+        taxonomy={taxonomy.data}
+        locked={doc.createPending}
+      />
       <div className="cms-actions">
         <button
           id="cmsSave"
@@ -358,7 +381,7 @@ export function CmsEditor({
           disabled={doc.saving || busy}
           onClick={() => void doc.save()}
         >
-          保存正文与 CMS 信息
+          {doc.createPending && !doc.saving ? '核对并恢复这次保存' : '保存正文与 CMS 信息'}
         </button>
         {saved && (
           <a

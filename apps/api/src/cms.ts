@@ -35,10 +35,34 @@ const metaSchema = z.strictObject({
   categoryId: uuid.nullable().default(null),
   tagIds: ids.default([]),
 });
-const createSchema = articleInputSchema.extend({ cms: metaSchema });
+// Only manual article writes support automatic slugs. Import and taxonomy
+// continue to require their explicit, strictly validated stable slugs.
+const autoMetaInput = metaSchema.extend({
+  slug: z
+    .string()
+    .max(120)
+    .trim()
+    .refine((value) => !value || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value))
+    .transform((value) => value || undefined)
+    .optional(),
+  categoryId: uuid
+    .nullable()
+    .default(null)
+    .transform((value) => value?.toLowerCase() ?? null),
+  tagIds: z
+    .array(uuid)
+    .max(50)
+    .transform((values) => values.map((value) => value.toLowerCase()).sort())
+    .refine((values) => new Set(values).size === values.length)
+    .default([]),
+});
+const createSchema = articleInputSchema.extend({
+  requestId: uuid.optional(),
+  cms: autoMetaInput,
+});
 const updateSchema = articleInputSchema.extend({
   expectedRevision: revision,
-  cms: metaSchema.extend({ expectedRevision: z.number().int().min(0) }),
+  cms: autoMetaInput.extend({ expectedRevision: z.number().int().min(0) }),
 });
 const taxonomySchema = z.strictObject({ name, slug });
 const sortOrder = z.number().int().min(0).max(2147483647);
@@ -94,6 +118,7 @@ const importEnvelope = z.strictObject({
   items: z.array(z.unknown()).min(1).max(20),
 });
 type Meta = z.infer<typeof metaSchema>;
+type AutoMetaInput = z.infer<typeof autoMetaInput>;
 type Db = Pick<PoolClient, "query">;
 export interface ReadIdentity {
   owner: string;
@@ -115,6 +140,19 @@ type ImportResult = {
   errors?: string[];
 };
 
+export function automaticArticleSlug(
+  id: string,
+  occupied: ReadonlySet<string>,
+) {
+  uuid.parse(id);
+  const base = `article-${id.replaceAll("-", "").slice(0, 12).toLowerCase()}`;
+  for (let index = 0; index < 128; index++) {
+    const candidate = index === 0 ? base : `${base}-${index + 1}`;
+    if (!occupied.has(candidate)) return candidate;
+  }
+  throw new ApiError(409, "SLUG_ALLOCATION_FAILED");
+}
+
 export class CmsService {
   constructor(
     private pool: Pool,
@@ -127,7 +165,13 @@ export class CmsService {
       return await this.articles.transaction(owner, action);
     } catch (e) {
       if ((e as { code?: string }).code === "23505")
-        throw new ApiError(409, "CMS_CONFLICT");
+        throw new ApiError(
+          409,
+          (e as { constraint?: string }).constraint ===
+            "wb_cms_articles_account_id_slug_key"
+            ? "SLUG_CONFLICT"
+            : "CMS_CONFLICT",
+        );
       if ((e as { code?: string }).code === "23503")
         throw new ApiError(409, "CMS_REFERENCE_CONFLICT");
       throw e;
@@ -447,7 +491,7 @@ export class CmsService {
       await c.query("DELETE FROM wb_cms_taxonomy WHERE id=$1", [id]);
     });
   }
-  private async references(c: Db, owner: string, dto: Meta) {
+  private async references(c: Db, owner: string, dto: AutoMetaInput) {
     if (
       dto.categoryId &&
       !(
@@ -475,18 +519,45 @@ export class CmsService {
       JSON.stringify(meta.tagIds) === JSON.stringify(dto.tagIds)
     );
   }
+  private async newArticleSlug(c: Db, owner: string, id: string) {
+    const base = `article-${id.replaceAll("-", "").slice(0, 12).toLowerCase()}`;
+    const rows = (
+      await c.query(
+        "SELECT slug FROM wb_cms_articles WHERE account_id=$1 AND (slug=$2 OR slug LIKE $3)",
+        [owner, base, base + "-%"],
+      )
+    ).rows;
+    return automaticArticleSlug(
+      id,
+      new Set(rows.map((row) => String(row.slug))),
+    );
+  }
   private async saveMeta(
     c: PoolClient,
     owner: string,
     id: string,
-    dto: Meta,
+    input: AutoMetaInput,
     expected: number,
   ) {
     const old = await this.metadata(c, owner, id);
     if (old.revision !== expected)
       throw new ApiError(409, "CMS_REVISION_CONFLICT");
+    const dto: Meta = {
+      ...input,
+      slug:
+        input.slug ?? (old.slug || (await this.newArticleSlug(c, owner, id))),
+    };
     await this.references(c, owner, dto);
     if (old.revision && this.same(old, dto)) return;
+    if (
+      (
+        await c.query(
+          "SELECT 1 FROM wb_cms_articles WHERE account_id=$1 AND slug=$2 AND article_id<>$3",
+          [owner, dto.slug, id],
+        )
+      ).rowCount
+    )
+      throw new ApiError(409, "SLUG_CONFLICT");
     if (!old.revision)
       await c.query(
         "INSERT INTO wb_cms_articles(article_id,account_id,slug,summary,category_id) VALUES($1,$2,$3,$4,$5)",
@@ -505,16 +576,50 @@ export class CmsService {
       );
   }
   async create(owner: string, input: unknown) {
-    return this.write(owner, (c) => this.createInTransaction(c, owner, input));
+    const dto = createSchema.parse(input);
+    return this.write(owner, (c) => this.saveNewArticle(c, owner, dto));
   }
   // The caller must hold ArticleService.transaction's account lock. MCP saves
   // its idempotency receipt in this same transaction as the article and metadata.
   async createInTransaction(c: PoolClient, owner: string, input: unknown) {
-    const dto = createSchema.parse(input);
-    const article = await this.articles.createInTransaction(c, owner, {
-      title: dto.title,
-      text: dto.text,
-    });
+    return this.saveNewArticle(c, owner, createSchema.parse(input));
+  }
+  private async saveNewArticle(
+    c: PoolClient,
+    owner: string,
+    dto: z.output<typeof createSchema>,
+  ) {
+    if (dto.requestId) {
+      const existing = (
+        await c.query("SELECT account_id FROM wb_articles WHERE id=$1", [
+          dto.requestId,
+        ])
+      ).rows[0];
+      if (existing) {
+        if (existing.account_id !== owner)
+          throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
+        const current = await this.detail(c, owner, dto.requestId);
+        const metadata: Meta = {
+          ...dto.cms,
+          slug: dto.cms.slug ?? current.cms.slug,
+        };
+        if (
+          current.revision !== 1 ||
+          current.cms.revision !== 1 ||
+          current.title !== dto.title ||
+          current.text !== dto.text ||
+          !this.same(current.cms, metadata)
+        )
+          throw new ApiError(409, "CREATE_REQUEST_CONFLICT");
+        return current;
+      }
+    }
+    const article = await this.articles.createInTransaction(
+      c,
+      owner,
+      { title: dto.title, text: dto.text },
+      dto.requestId,
+    );
     const id = article.id as string;
     await this.saveMeta(c, owner, id, dto.cms, 0);
     return this.detail(c, owner, id);

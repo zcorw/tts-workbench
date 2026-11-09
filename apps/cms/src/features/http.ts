@@ -130,7 +130,8 @@ export const cmsHttp = {
       )}`,
     ),
   article: (id: string) => json<CmsArticle>(path(id)),
-  create: (draft: CmsDraft) => write<CmsArticle>(`${root}/articles`, 'POST', bodyOf(draft)),
+  create: (draft: CmsDraft, requestId: string) =>
+    write<CmsArticle>(`${root}/articles`, 'POST', { ...bodyOf(draft), requestId }),
   save: (id: string, draft: CmsDraft, previous: CmsArticle) =>
     write<CmsArticle>(path(id), 'PATCH', {
       ...bodyOf(draft),
@@ -151,7 +152,7 @@ export const cmsHttp = {
   releases: (id: string) => json<{ items: CmsRelease[] }>(`${path(id)}/releases`),
   release: (id: string, releaseId: string) =>
     json<CmsRelease>(`${path(id)}/releases/${encodeURIComponent(releaseId)}`),
-  publish: (article: CmsArticle, audioId: string | null) =>
+  publish: (article: CmsSummary, audioId: string | null) =>
     write<CmsRelease>(`${path(article.id)}/releases`, 'POST', {
       expectedRevision: article.revision,
       expectedCmsRevision: article.cms.revision,
