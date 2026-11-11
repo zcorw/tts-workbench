@@ -452,7 +452,7 @@ export interface paths {
         };
         /**
          * Search owned platform articles with CMS metadata
-         * @description Search title, original text and summary. category is exact direct membership or uncategorized; no descendant expansion. List excludes original text and audio bytes. No metadata gives cms.revision=0. Publishing does not make content anonymous.
+         * @description Search title, original text and summary. category is exact direct membership or uncategorized; no descendant expansion. Audio presence filtering applies before pagination and total counting and includes articles without CMS metadata. List excludes original text and audio bytes. No metadata gives cms.revision=0. Publishing does not make content anonymous.
          */
         get: operations["cmsArticles"];
         put?: never;
@@ -5373,6 +5373,7 @@ export interface operations {
                 limit?: number;
                 offset?: number;
                 status?: "draft" | "published";
+                audio?: "missing";
             };
             header?: never;
             path?: never;

@@ -56,11 +56,12 @@ const listSchema = z.strictObject({
   category: z.union([uuid, z.literal("uncategorized")]).optional(),
   tag: uuid.optional(),
   status: z.enum(["draft", "published"]).optional(),
+  audio: z.enum(["missing"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
 // Reading uses direct frozen category membership, without consulting the draft tree.
-const readListSchema = listSchema.omit({ status: true }).extend({
+const readListSchema = listSchema.omit({ status: true, audio: true }).extend({
   category: z.union([uuid, z.literal("uncategorized")]).optional(),
 });
 const moveCategorySchema = z.strictObject({
@@ -222,6 +223,10 @@ export class CmsService {
       if (q.status)
         clauses.push(
           `m.published_release_id IS ${q.status === "draft" ? "" : "NOT "}NULL`,
+        );
+      if (q.audio === "missing")
+        clauses.push(
+          "NOT EXISTS(SELECT 1 FROM wb_article_audio au WHERE au.article_id=a.id)",
         );
       const from = `FROM wb_articles a LEFT JOIN wb_cms_articles m ON m.article_id=a.id WHERE ${clauses.join(" AND ")}`;
       const total = Number(

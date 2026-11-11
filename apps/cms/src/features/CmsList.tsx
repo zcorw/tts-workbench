@@ -14,10 +14,11 @@ export function CmsList({ accountId }: { accountId: string }) {
   const q = params.get('q') || '',
     category = params.get('category') || '',
     tag = params.get('tag') || '',
-    status = params.get('status') || '';
+    status = params.get('status') || '',
+    audio = params.get('audio') || '';
   const n = Number(params.get('page') || 1),
     page = Number.isSafeInteger(n) && n > 0 ? n : 1,
-    key = JSON.stringify([q, category, tag, status, page]);
+    key = JSON.stringify([q, category, tag, status, audio, page]);
   const [search, setSearch] = useState(q),
     [selected, setSelected] = useState<Record<string, CmsSummary>>({});
   const [target, setTarget] = useState(''),
@@ -46,13 +47,14 @@ export function CmsList({ accountId }: { accountId: string }) {
     queryFn: cmsHttp.taxonomy,
   });
   const query = useQuery({
-    queryKey: ['cms', accountId, 'articles', q, category, tag, status, page],
+    queryKey: ['cms', accountId, 'articles', q, category, tag, status, audio, page],
     queryFn: () =>
       cmsHttp.articles({
         q,
         category,
         tag,
         status,
+        audio,
         limit: 20,
         offset: (page - 1) * 20,
       }),
@@ -194,7 +196,9 @@ export function CmsList({ accountId }: { accountId: string }) {
               ，再选择文章移动归属。
             </p>
           )}
-          <p className="small-note">篇数为直接归属，不包含子分类。列表还受搜索、标签和状态筛选。</p>
+          <p className="small-note">
+            篇数为直接归属，不包含子分类。列表还受搜索、标签、发布状态和音频状态筛选。
+          </p>
         </aside>
         <div className="cms-list-content">
           <h2 id="cmsCurrentCategory">{categoryName}</h2>
@@ -235,6 +239,18 @@ export function CmsList({ accountId }: { accountId: string }) {
                 <option value="">全部状态</option>
                 <option value="draft">未发布</option>
                 <option value="published">已发布</option>
+              </select>
+            </label>
+            <label>
+              音频状态
+              <select
+                id="cmsAudioFilter"
+                value={audio}
+                disabled={busy}
+                onChange={(e) => filter('audio', e.target.value)}
+              >
+                <option value="">全部音频状态</option>
+                <option value="missing">无音频</option>
               </select>
             </label>
             <button className="button secondary" disabled={busy}>

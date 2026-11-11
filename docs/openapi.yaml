@@ -4781,8 +4781,9 @@ paths:
       operationId: cmsArticles
       summary: Search owned platform articles with CMS metadata
       description: Search title, original text and summary. category is exact direct membership or uncategorized; no
-        descendant expansion. List excludes original text and audio bytes. No metadata gives cms.revision=0.
-        Publishing does not make content anonymous.
+        descendant expansion. Audio presence filtering applies before pagination and total counting and
+        includes articles without CMS metadata. List excludes original text and audio bytes. No metadata gives
+        cms.revision=0. Publishing does not make content anonymous.
       security:
         - sessionCookie: []
       parameters:
@@ -4832,6 +4833,15 @@ paths:
             enum:
               - draft
               - published
+          required: false
+        - name: audio
+          in: query
+          schema:
+            type: string
+            enum:
+              - missing
+            description: missing selects articles without saved working audio. Stale audio still counts as present. Omit
+              for all audio states.
           required: false
       responses:
         "200":
