@@ -5,12 +5,21 @@ import { ErrorNotice, Modal, useServices } from '@workbench/components/shared';
 import { messageOf, ServiceError } from '@workbench/types';
 import { cmsHttp } from './http';
 import { categoryEntries } from './categoryTree';
-import type { CmsSummary } from './types';
+import type { CmsSummary, NavigationGuard } from './types';
+import { publishBatch, type PublishResult } from './publishBatch';
 import { workbenchHref } from '../links';
-export function CmsList({ accountId }: { accountId: string }) {
+import { useBatchAudio } from './BatchAudio';
+export function CmsList({
+  accountId,
+  onGuardChange,
+}: {
+  accountId: string;
+  onGuardChange: (guard: NavigationGuard | undefined) => void;
+}) {
   const [params, setParams] = useSearchParams(),
     client = useQueryClient(),
     { failed } = useServices();
+  const batchAudio = useBatchAudio();
   const q = params.get('q') || '',
     category = params.get('category') || '',
     tag = params.get('tag') || '',
@@ -26,6 +35,17 @@ export function CmsList({ accountId }: { accountId: string }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('');
+  const [publishing, setPublishing] = useState<CmsSummary[] | null>(null),
+    [allowTextOnly, setAllowTextOnly] = useState(false),
+    [publishResults, setPublishResults] = useState<PublishResult[]>([]);
+  const publishLock = useRef(false);
+  const moveLock = useRef(false);
+  useEffect(() => {
+    if (busy)
+      onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
+    else onGuardChange(undefined);
+    return () => onGuardChange(undefined);
+  }, [busy, onGuardChange]);
   const [needsRefresh, setNeedsRefresh] = useState(false),
     alive = useRef(true);
   useEffect(() => {
@@ -38,6 +58,8 @@ export function CmsList({ accountId }: { accountId: string }) {
     setSearch(q);
     setSelected({});
     setConfirm(false);
+    setPublishing(null);
+    setPublishResults([]);
     setError('');
     setNotice('');
     setNeedsRefresh(false);
@@ -66,9 +88,12 @@ export function CmsList({ accountId }: { accountId: string }) {
     category === 'uncategorized'
       ? '未分类'
       : entries.find((e) => e.category.id === category)?.path.join(' / ') || '全部文章';
-  const targetName = target
-    ? entries.find((e) => e.category.id === target)?.path.join(' / ') || '已删除的分类'
-    : '未分类';
+  const validTarget = target === 'uncategorized' || entries.some((e) => e.category.id === target);
+  const targetName = !target
+    ? '请选择目标分类'
+    : target === 'uncategorized'
+      ? '未分类'
+      : entries.find((e) => e.category.id === target)?.path.join(' / ') || '已删除的分类';
   const all = !!items.length && items.every((a) => !!selected[a.id]);
   const filter = (name: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -89,7 +114,7 @@ export function CmsList({ accountId }: { accountId: string }) {
       setSelected(Object.fromEntries(latest.map((article) => [article.id, article])));
       setNeedsRefresh(false);
       setNotice(
-        '已载入所选文章的最新版本；即使归属或排序已变化，选择仍保留。请核对标题和目标分类，再确认移动。未自动提交。',
+        '已载入所选文章的最新版本；即使归属或排序已变化，选择仍保留。请核对标题、分类和音频，再重新确认操作。未自动提交。',
       );
       await taxonomy.refetch();
     } catch (e) {
@@ -106,10 +131,22 @@ export function CmsList({ accountId }: { accountId: string }) {
     }
   };
   const move = async () => {
+    if (
+      moveLock.current ||
+      busy ||
+      !confirm ||
+      !chosen.length ||
+      !validTarget ||
+      taxonomy.isPending ||
+      taxonomy.error
+    )
+      return;
+    moveLock.current = true;
+    onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
     setBusy(true);
     setError('');
     try {
-      await cmsHttp.moveCategory(target || null, chosen);
+      await cmsHttp.moveCategory(target === 'uncategorized' ? null : target, chosen);
       if (!alive.current) return;
       setConfirm(false);
       setSelected({});
@@ -129,6 +166,54 @@ export function CmsList({ accountId }: { accountId: string }) {
         failed(e);
       }
     } finally {
+      moveLock.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
+  const publishSelected = async () => {
+    if (publishLock.current || !publishing) return;
+    publishLock.current = true;
+    // Protect an immediate Back/close before React commits the busy effect.
+    onGuardChange({ dirty: false, saving: true, save: async () => false, discard: () => {} });
+    setBusy(true);
+    setError('');
+    setNotice('');
+    const batch = publishing;
+    try {
+      const results = await publishBatch(batch, allowTextOnly, {
+        publish: cmsHttp.publish,
+        active: () => alive.current,
+        progress: (value) => {
+          if (alive.current) setPublishResults([...value]);
+        },
+      });
+      // Invalidate even if this page unmounted while a request was finishing.
+      void client.invalidateQueries({ queryKey: ['cms', accountId] });
+      if (!alive.current) return;
+      setPublishResults(results);
+      const successful = new Set(
+        results.filter((r) => r.status === 'success').map((r) => r.article.id),
+      );
+      setSelected(
+        Object.fromEntries(batch.filter((a) => !successful.has(a.id)).map((a) => [a.id, a])),
+      );
+      setNeedsRefresh(successful.size < batch.length);
+      setPublishing(null);
+      setNotice(
+        `本次 ${batch.length} 篇：已上线 ${successful.size} 篇，未完成 ${batch.length - successful.size} 篇。`,
+      );
+      if (successful.size < batch.length) {
+        setError(
+          '未完成的文章已保留选择。请先载入最新版本并核对阅读库，再重新确认；不会自动重试。',
+        );
+      }
+    } catch (e) {
+      if (alive.current) {
+        setError(messageOf(e));
+        failed(e);
+      }
+    } finally {
+      publishLock.current = false;
       if (alive.current) setBusy(false);
     }
   };
@@ -272,7 +357,7 @@ export function CmsList({ accountId }: { accountId: string }) {
               {notice}
             </p>
           )}
-          <div className="cms-bulk-toolbar" aria-label="批量分类操作">
+          <div className="cms-bulk-toolbar" aria-label="批量文章操作">
             <label className="cms-check">
               <input
                 id="cmsSelectPage"
@@ -286,31 +371,55 @@ export function CmsList({ accountId }: { accountId: string }) {
               选择本页
             </label>
             <span role="status">已选 {chosen.length} 篇</span>
-            <label>
-              移动到
-              <select
-                id="cmsMoveCategory"
-                aria-label="移动到分类"
-                value={target}
-                disabled={busy}
-                onChange={(e) => setTarget(e.target.value)}
-              >
-                <option value="">未分类</option>
-                {entries.map(({ category: c, path }) => (
-                  <option key={c.id} value={c.id}>
-                    {path.join(' / ')}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               id="cmsMoveSelected"
               className="button secondary"
-              disabled={busy || !chosen.length || needsRefresh || taxonomy.isPending}
-              onClick={() => setConfirm(true)}
+              disabled={
+                busy || !chosen.length || needsRefresh || taxonomy.isPending || !!taxonomy.error
+              }
+              onClick={() => {
+                setTarget('');
+                setConfirm(true);
+              }}
             >
               移动所选文章…
             </button>
+            <button
+              id="cmsPublishSelected"
+              className="button primary"
+              disabled={busy || !chosen.length || needsRefresh}
+              onClick={() => {
+                setPublishing([...chosen]);
+                setAllowTextOnly(false);
+                setPublishResults([]);
+                setError('');
+              }}
+            >
+              批量上线到阅读库…
+            </button>
+            <button
+              id="cmsGenerateSelected"
+              className="button secondary"
+              disabled={
+                busy || !chosen.length || needsRefresh || !batchAudio || batchAudio.unavailable
+              }
+              onClick={() =>
+                batchAudio?.open(chosen, () => {
+                  if (alive.current) setSelected({});
+                })
+              }
+            >
+              批量生成编辑稿音频…
+            </button>
+            {batchAudio?.hasHistory && (
+              <button
+                id="cmsAudioBatchHistoryOpen"
+                className="text-button"
+                onClick={() => batchAudio.openHistory()}
+              >
+                音频任务记录
+              </button>
+            )}
             {chosen.length > 0 && (
               <button
                 className="text-button"
@@ -335,6 +444,18 @@ export function CmsList({ accountId }: { accountId: string }) {
               </button>
             )}
           </div>
+          {publishResults.length > 0 && !publishing && (
+            <div className="cms-publish-results" aria-label="批量上线结果" role="status">
+              <h3>本次上线结果</h3>
+              <ul>
+                {publishResults.map((result) => (
+                  <li key={result.article.id}>
+                    <strong>{result.article.title}</strong>：{result.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {query.isPending ? (
             <p role="status">正在载入内容…</p>
           ) : (
@@ -425,6 +546,74 @@ export function CmsList({ accountId }: { accountId: string }) {
           )}
         </div>
       </div>
+      {publishing && (
+        <Modal
+          id="cmsBulkPublishConfirm"
+          title="批量上线到本人阅读库？"
+          busy={busy}
+          onClose={() => setPublishing(null)}
+        >
+          <p>
+            本次选择 {publishing.length} 篇（仅本页，最多 20
+            篇）。将逐篇固定当前已保存的正文、分类及音频版本，不是匿名公开发布。
+          </p>
+          <p>已上线文章会创建新发布版本并替换阅读库当前展示。单篇失败不撤销其他已成功的文章。</p>
+          <ul className="cms-move-titles" aria-label="本次上线的文章">
+            {publishing.map((article) => (
+              <li key={article.id}>
+                <strong>{article.title}</strong>
+                <span className="small-note">
+                  {' '}
+                  · 正文 v{article.revision} / CMS v{article.cms.revision}
+                  {article.cms.publishedReleaseId ? ' · 更新已上线版本' : ' · 首次上线'}
+                  {article.audio && !article.audioStale
+                    ? ` · 含音频 ${article.audio.voice} / ${article.audio.speed.toFixed(2)}×`
+                    : ' · 无有效音频（仅正文）'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {publishing.some((a) => !a.audio || a.audioStale) && (
+            <label className="cms-check">
+              <input
+                id="cmsBulkPublishTextOnly"
+                type="checkbox"
+                checked={allowTextOnly}
+                disabled={busy}
+                onChange={(e) => setAllowTextOnly(e.target.checked)}
+              />
+              明确允许无有效音频的文章仅上线正文（不会生成语音）
+            </label>
+          )}
+          <p className="small-note">
+            有有效音频的文章使用上面列出的已保存音频。版本变化会拒绝该篇发布，请核对后重试。
+          </p>
+          {busy && (
+            <p role="status">
+              正在上线 {publishResults.length} / {publishing.length} 篇，请勿关闭页面…
+            </p>
+          )}
+          <div className="dialog-footer">
+            <button
+              className="button secondary"
+              disabled={busy}
+              onClick={() => setPublishing(null)}
+            >
+              取消
+            </button>
+            <button
+              id="cmsBulkPublishSubmit"
+              className="button primary"
+              disabled={
+                busy || (!allowTextOnly && publishing.some((a) => !a.audio || a.audioStale))
+              }
+              onClick={() => void publishSelected()}
+            >
+              {busy ? '正在上线…' : `确认上线 ${publishing.length} 篇`}
+            </button>
+          </div>
+        </Modal>
+      )}
       {confirm && (
         <Modal
           id="cmsMoveCategoryConfirm"
@@ -432,10 +621,28 @@ export function CmsList({ accountId }: { accountId: string }) {
           busy={busy}
           onClose={() => setConfirm(false)}
         >
-          <p>
-            将 {chosen.length} 篇文章统一移入“{targetName}
-            ”。按当前载入版本检查，任一文章已变化时本次全部取消。
-          </p>
+          <p>本次选择 {chosen.length} 篇文章。请选择目标分类，确认后才会移动。</p>
+          <label className="cms-field">
+            目标分类
+            <select
+              id="cmsMoveCategory"
+              aria-label="目标分类"
+              value={target}
+              disabled={busy || taxonomy.isPending || !!taxonomy.error}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value="" disabled>
+                请选择目标分类…
+              </option>
+              <option value="uncategorized">未分类</option>
+              {entries.map(({ category: c, path }) => (
+                <option key={c.id} value={c.id}>
+                  {path.join(' / ')}
+                </option>
+              ))}
+            </select>
+          </label>
+          {target && <p>目标：{targetName}。按当前载入版本检查，任一文章已变化时本次全部取消。</p>}
           <p>不会改动正文、读法、音频或已发布版本。切换分类或页面会清除本页选择。</p>
           <ul className="cms-move-titles" aria-label="本次移动的文章">
             {chosen.map((article) => (
@@ -449,7 +656,9 @@ export function CmsList({ accountId }: { accountId: string }) {
             <button
               id="cmsMoveCategoryConfirmSubmit"
               className="button primary"
-              disabled={busy}
+              disabled={
+                busy || !chosen.length || !validTarget || taxonomy.isPending || !!taxonomy.error
+              }
               onClick={() => void move()}
             >
               {busy ? '正在移动…' : '确认移动'}

@@ -12,7 +12,11 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4384",
     "format:check": "prettier --check src vite.config.ts",
-    "format": "prettier --write src vite.config.ts"
+    "format": "prettier --write src vite.config.ts",
+    "test:bulk-publish": "node --experimental-strip-types --test qa/bulk-publish.test.mjs",
+    "test:bulk-publish:ui": "node qa/bulk-publish-ui.cjs",
+    "test:batch-audio": "node --experimental-strip-types --test qa/audio-batch.test.mjs",
+    "test:batch-audio:ui": "node qa/audio-batch-ui.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",

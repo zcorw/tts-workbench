@@ -124,14 +124,12 @@ export class SpeechService {
   voices(owner: string) {
     return {
       items: this.runtime
-        ? this.runtime.catalog
-            .list(this.actor(owner))
-            .map((v) => ({
-              id: v.alias,
-              name: "日本語",
-              language: "ja-JP" as const,
-              provider: "azure-speech" as const,
-            }))
+        ? this.runtime.catalog.list(this.actor(owner)).map((v) => ({
+            id: v.alias,
+            name: "日本語",
+            language: "ja-JP" as const,
+            provider: "azure-speech" as const,
+          }))
         : [],
     };
   }
@@ -144,6 +142,7 @@ export class SpeechService {
     preview: boolean,
     signal: AbortSignal,
     requestId: string,
+    expectedRuleVersion?: number,
   ) {
     const draft = preview ? previewSchema.parse(input) : undefined;
     const dto = speechSchema.parse(
@@ -176,6 +175,11 @@ export class SpeechService {
         ),
       ),
     });
+    if (
+      expectedRuleVersion !== undefined &&
+      snapshot.version !== expectedRuleVersion
+    )
+      throw new ApiError(409, "PRONUNCIATION_CHANGED");
     return this.context.run({ owner, snapshot }, async () => {
       const result = await this.runtime!.synthesis.synthesize(
         { ...dto, dictionaryIds: [owner] },

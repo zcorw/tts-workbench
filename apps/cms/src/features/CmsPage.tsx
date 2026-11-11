@@ -37,7 +37,7 @@ export function CmsPage({
         allowNavigation={allowNavigation}
       />
     );
-  if (path === '/articles') return <CmsList accountId={accountId} />;
+  if (path === '/articles') return <CmsList accountId={accountId} onGuardChange={onGuardChange} />;
   if (path === '/import') return <CmsImport accountId={accountId} failed={failed} />;
   if (path === '/taxonomy') return <CmsTaxonomy accountId={accountId} failed={failed} />;
   if (read)

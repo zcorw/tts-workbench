@@ -1,6 +1,7 @@
 import {writeFileSync} from 'node:fs';
 import YAML from 'yaml';
 import {addCmsContract} from './cms-contract.mjs';
+import {addCmsAudioBatchContract} from './cms-audio-batch-contract.mjs';
 import {addMcpContract} from './mcp-contract.mjs';
 import {addZhiyueContract} from './zhiyue-contract.mjs';
 const ref = n => ({$ref:`#/components/schemas/${n}`});
@@ -123,6 +124,8 @@ op('/health/live','get','liveness','Process liveness',json('Health'),{auth:false
 op('/health/ready','get','readiness','Database and runtime readiness',json('Health'),{auth:false,description:'No paid synthesis. DB must be reachable. TTS may be intentionally unconfigured; getVoices is then empty and synthesis returns 503.'});
 addCmsContract({schema,paths,op,ref,str,int,obj,uuid,time,json,errors});
 const api={openapi:'3.0.3',info:{title:'Japanese TTS Workbench API',version:'1.4.0',description:'Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable. CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates HTTPS, proxies a single 127.0.0.1 Compose port. Do not trust caller-supplied identity or forwarded headers. Fetch with credentials same-origin. Every mutation uses JSON (except bodyless logout/delete), Origin verification and X-CSRF-Token; registration and CMS read-token issuance are opt-in. No local-position override.'},servers:[{url:'/'}],paths,components:{securitySchemes:{sessionCookie:{type:'apiKey',in:'cookie',name:'wb_session'},csrfHeader:{type:'apiKey',in:'header',name:'X-CSRF-Token'},cmsReadBearer:{type:'http',scheme:'bearer',description:'Only current published CMS reading endpoints. Short-lived, revocable and owner/category scoped; no draft/edit/synthesis access.'}},schemas:schema}};
+addCmsAudioBatchContract(api);
 addMcpContract(api);
 addZhiyueContract(api);
+api.info.version = '1.7.0';
 writeFileSync('docs/openapi.yaml',YAML.stringify(api,{lineWidth:110,aliasDuplicateObjects:false}));

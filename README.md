@@ -59,7 +59,7 @@ npm --prefix apps/web run dev
 - 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
-当前 [OpenAPI 1.6.0](docs/openapi.yaml) 含 74 个操作，包含知阅设备配对、只读文章和限时音频接口。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)。接口修改须同步契约和前端生成类型。
+当前 [OpenAPI 1.7.0](docs/openapi.yaml) 含 78 个操作，包含批量音频、知声 MCP 和知阅设备配对与只读接口。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)。接口修改须同步契约和前端生成类型。
 
 ## 部署
 

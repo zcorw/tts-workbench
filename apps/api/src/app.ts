@@ -53,6 +53,9 @@ import { createZhiyueAccountRouter, createZhiyueDeviceRouter } from "./zhiyue-ht
 import { McpBatchService } from "./mcp-batch.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { createMcpRouter, createMcpAccountRouter } from "./mcp-http.js";
+import { GenerationAdmission } from "./generation-admission.js";
+import { AudioBatchService } from "./audio-batches.js";
+import { createAudioBatchRouter } from "./audio-batches-http.js";
 import { GatewayError } from "tts-gateway";
 interface ApiRequest extends Request {
   requestId: string;
@@ -69,6 +72,8 @@ export interface State {
   cms: CmsService;
   mcpBatch: McpBatchService;
   mcpOAuth: McpOAuthService;
+  audioBatches: AudioBatchService;
+  generationAdmission: GenerationAdmission;
 }
 export function sendError(error: unknown, req: Request, res: Response) {
   const parserError =
@@ -428,7 +433,10 @@ class AuthController {
     return { status: "ok" };
   }
 }
-export async function createApplication(config: Config) {
+export async function createApplication(
+  config: Config,
+  options: { batchPollMs?: number } = {},
+) {
   const sites = createSites(config);
   const pool = new Pool({
     connectionString: config.DATABASE_URL,
@@ -471,6 +479,16 @@ export async function createApplication(config: Config) {
   const zhiyueOrigin = config.CMS_PUBLIC_ORIGIN;
   const zhiyue = config.CMS_ZHIYUE_ENABLED && config.CMS_DIST && zhiyueOrigin?.startsWith("https://")
     ? new ZhiyueDeviceService(pool) : undefined;
+  const generationAdmission = new GenerationAdmission(pool);
+  const audioBatches = new AudioBatchService(
+    pool,
+    articles,
+    speech,
+    generationAdmission,
+    {
+      pollMs: options.batchPollMs,
+    },
+  );
   const state: State = {
     pool,
     config,
@@ -481,6 +499,8 @@ export async function createApplication(config: Config) {
     cms,
     mcpBatch: new McpBatchService(pool, articles, cms),
     mcpOAuth: new McpOAuthService(pool, articles, config),
+    audioBatches,
+    generationAdmission,
   };
   @Module({
     imports: [
@@ -604,22 +624,24 @@ export async function createApplication(config: Config) {
       (req) => requireAccount(req).id,
     ),
   );
-  server.use(
-    rateLimit({
-      skip: (req) =>
-        req.method !== "POST" ||
-        !/^\/v1\/(?:audio\/(?:speech|preview)|articles\/[^/]+\/audio)\/?$/i.test(
-          req.path,
-        ),
-      windowMs: 60000,
-      limit: 10,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      keyGenerator: (req) => requireAccount(req).id,
-      handler: (req, res) =>
-        sendError(new ApiError(429, "RATE_LIMITED"), req, res),
-    }),
-  );
+  server.use((req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.method !== "POST" ||
+      !/^\/v1\/(?:audio\/(?:speech|preview)|articles\/[^/]+\/audio)\/?$/i.test(
+        req.path,
+      )
+    )
+      return next();
+    Promise.resolve()
+      .then(async () => {
+        const slot = await generationAdmission.acquire(requireAccount(req).id);
+        if (!slot.allowed)
+          return sendError(new ApiError(429, "RATE_LIMITED"), req, res);
+        next();
+      })
+      .catch(next);
+  });
+  server.use("/v1/cms/audio-batches", createAudioBatchRouter(audioBatches));
   server.use(
     "/v1/cms",
     createCmsRouter(cms, (req) => sites.origin(req) ?? config.PUBLIC_ORIGIN),
@@ -630,11 +652,13 @@ export async function createApplication(config: Config) {
   );
   app.useGlobalFilters(new ErrorFilter());
   await app.init();
+  audioBatches.start();
   const cmsServer = sites.cmsServer(server);
   let closing: Promise<void> | undefined;
   const close = () =>
     (closing ??= (async () => {
       await Promise.all([closeHttp(cmsServer), closeHttp(app.getHttpServer())]);
+      await audioBatches.close();
       await app.close();
       await speech.close();
       sessions.store.close();
