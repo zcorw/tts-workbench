@@ -1,0 +1,85 @@
+name: Zhiyue device authorization checks
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'apps/cms/**'
+      - 'docs/openapi.yaml'
+      - 'scripts/**'
+      - 'vendor/**'
+      - 'package*.json'
+      - '.github/workflows/zhiyue-check.yml'
+  workflow_dispatch:
+
+# This workflow never publishes images, deploys, or accesses production secrets.
+permissions:
+  contents: read
+concurrency:
+  group: zhiyue-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: workbench
+          POSTGRES_PASSWORD: isolated_ci_password
+          POSTGRES_DB: zhiyue_integration_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U workbench -d zhiyue_integration_test"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.23.4'
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          node scripts/verify-packages.mjs
+          npm --prefix apps/api ci
+          npm --prefix apps/web ci
+          npm --prefix apps/cms ci
+      - name: Validate OpenAPI and generated types
+        run: |
+          node scripts/write-contract.mjs
+          npm run contract:validate
+          npm --prefix apps/web run generate:api
+          git diff --exit-code -- docs/openapi.yaml apps/web/src/api/schema.d.ts
+          npm --prefix apps/web run check:api
+      - name: Build API and check browser types
+        run: |
+          npm --prefix apps/api run build
+          npm --prefix apps/web run typecheck
+          npm --prefix apps/cms run typecheck
+      - name: Run device authorization against isolated PostgreSQL
+        env:
+          ZHIYUE_TEST_DATABASE_URL: postgresql://workbench:isolated_ci_password@127.0.0.1:5432/zhiyue_integration_test
+        working-directory: apps/api
+        run: node --test --test-concurrency=1 test/zhiyue-device.test.mjs
+      - name: Install test browser
+        working-directory: apps/cms
+        run: npx playwright install --with-deps chromium
+      - name: Test connection page with synthetic API responses
+        env:
+          BASE_URL: http://127.0.0.1:4384
+          QA_OUTPUT_DIR: ${{ runner.temp }}/zhiyue-browser
+        run: |
+          npm --prefix apps/cms run dev -- --strictPort > "$RUNNER_TEMP/zhiyue-vite.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent "$BASE_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent "$BASE_URL" > /dev/null
+          node apps/cms/qa/zhiyue-connection-ui.cjs

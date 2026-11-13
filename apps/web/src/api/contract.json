@@ -1,6 +1,6 @@
 {
   "openapi": "3.0.3",
-  "version": "1.7.0",
-  "sha256": "8994965fada2403fd527943457576f4b3cbb4b073fa895f75b64e4f5fc9d7d73",
+  "version": "1.8.0",
+  "sha256": "a324132c70c1ba11b90b110d6a735ff901d47d1ff172d4a21a58462b57c732ec",
   "source": "../../docs/openapi.yaml"
 }

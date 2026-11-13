@@ -1088,9 +1088,69 @@ export interface paths {
         put?: never;
         /**
          * Claim an approved 知阅 device binding
-         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange consumes the request once and returns a 24-hour device binding.
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange creates one pending binding. Repeating the same secret device_code within the fixed confirmation window returns the same binding and credentials. It does not extend the deadline or allocate another device. Persist credentials and confirm within five minutes of binding creation; otherwise the server rejects and cleans up the pending binding. Old clients must upgrade to support confirmation.
          */
         post: operations["zhiyueDeviceClaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm reliable device credential storage
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Call only after the client durably saves the grant. Pending bindings cannot read, issue media or refresh. Confirmation is idempotent: a confirmed binding returns 204 even after its access token expires. Unconfirmed bindings expire exactly five minutes after creation, independent of retries. A background worker physically deletes expired rows (normally within five seconds); startup and authorization paths also clean up. Existing legacy bindings are already confirmed by migration and are not subject to this deadline.
+         */
+        post: operations["zhiyueDeviceConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew a device access credential
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Use the persistent device refresh credential without a browser session. No idle or total binding expiry. Retrying after a lost response is safe; access credentials rotate, refresh credentials remain stable. Invalid grants require pairing again.
+         */
+        post: operations["zhiyueDeviceRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/zhiyue/device/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upgrade a valid legacy binding
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. A still-valid legacy credential starts upgrade. It returns a confirmed renewable binding, not a new pending device. Lost responses can be recovered using the original bearer within a fixed five-minute recovery window, even if its original access lifetime elapsed meanwhile. Retries do not extend the window. First refresh invalidates recovery material. Never-upgraded expired or revoked credentials cannot upgrade.
+         */
+        post: operations["zhiyueDeviceUpgrade"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2165,11 +2225,10 @@ export interface components {
         ZhiyueDeviceBinding: {
             /** @description Revocable device credential returned only on successful claim. Never log or include it in URLs. */
             access_token: string;
-            /**
-             * @description Binding lifetime in seconds (24 hours). No refresh credential.
-             * @enum {integer}
-             */
-            expires_in: 86400;
+            /** @description Persistent device-only renewal credential. Store privately; no idle or total lifetime. Revoked with the logical binding. */
+            refresh_token: string;
+            /** @description Access credential lifetime in seconds, independent of the logical binding. */
+            expires_in: number;
             account: {
                 /** Format: uuid */
                 id: string;
@@ -2177,6 +2236,8 @@ export interface components {
             };
             /** Format: uuid */
             binding_id: string;
+            /** @description True only for a newly claimed, pending binding. Persist credentials, then call confirm within five minutes of server-side creation before reading or refreshing. */
+            confirmation_required: boolean;
         };
         ZhiyueDeviceApproval: {
             /** @description Eight alphanumeric characters after removing whitespace and hyphens. Case insensitive. */
@@ -8885,6 +8946,257 @@ export interface operations {
             };
             /** @description Invalid request, pending approval, poll too fast, expired request, or consumed code. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    refresh_token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Binding confirmed or previously confirmed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown, revoked, inactive or expired pending grant. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    refresh_token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceBinding"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description JSON request exceeds the route payload limit. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueDeviceUpgrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueDeviceBinding"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

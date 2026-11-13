@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Japanese TTS Workbench API
-  version: 1.7.0
+  version: 1.8.0
   description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable.
     CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content
     access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
@@ -9110,7 +9110,11 @@ paths:
       summary: Claim an approved 知阅 device binding
       description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
         origin. Poll with the private device_code no faster than the advertised interval. Approval is
-        required. Successful exchange consumes the request once and returns a 24-hour device binding.
+        required. Successful exchange creates one pending binding. Repeating the same secret device_code
+        within the fixed confirmation window returns the same binding and credentials. It does not extend the
+        deadline or allocate another device. Persist credentials and confirm within five minutes of binding
+        creation; otherwise the server rejects and cleans up the pending binding. Old clients must upgrade to
+        support confirmation.
       security: []
       requestBody:
         required: true
@@ -9127,6 +9131,233 @@ paths:
                 $ref: "#/components/schemas/ZhiyueDeviceBinding"
         "400":
           description: Invalid request, pending approval, poll too fast, expired request, or consumed code.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/device/confirm:
+    post:
+      operationId: zhiyueDeviceConfirm
+      summary: Confirm reliable device credential storage
+      description: "Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Call only after the client durably saves the grant. Pending bindings cannot read, issue media
+        or refresh. Confirmation is idempotent: a confirmed binding returns 204 even after its access token
+        expires. Unconfirmed bindings expire exactly five minutes after creation, independent of retries. A
+        background worker physically deletes expired rows (normally within five seconds); startup and
+        authorization paths also clean up. Existing legacy bindings are already confirmed by migration and are
+        not subject to this deadline."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                refresh_token:
+                  type: string
+                  pattern: ^[A-Za-z0-9_-]{32,128}$
+              required:
+                - refresh_token
+      responses:
+        "204":
+          description: Binding confirmed or previously confirmed.
+        "400":
+          description: Unknown, revoked, inactive or expired pending grant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/device/refresh:
+    post:
+      operationId: zhiyueDeviceRefresh
+      summary: Renew a device access credential
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. Use the persistent device refresh credential without a browser session. No idle or total
+        binding expiry. Retrying after a lost response is safe; access credentials rotate, refresh credentials
+        remain stable. Invalid grants require pairing again.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                refresh_token:
+                  type: string
+                  pattern: ^[A-Za-z0-9_-]{32,128}$
+              required:
+                - refresh_token
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueDeviceBinding"
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueGrantError"
+        "404":
+          description: Feature disabled, wrong listener, or resource unavailable in the authorized scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: JSON request exceeds the route payload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Expected application/json.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Request rate or capacity exceeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ZhiyueRateLimitError"
+                  - $ref: "#/components/schemas/ZhiyueGrantError"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                enum:
+                  - 60
+              description: Sent for IP rate limiting.
+        "503":
+          description: Dependency unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/zhiyue/device/upgrade:
+    post:
+      operationId: zhiyueDeviceUpgrade
+      summary: Upgrade a valid legacy binding
+      description: Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS
+        origin. A still-valid legacy credential starts upgrade. It returns a confirmed renewable binding, not
+        a new pending device. Lost responses can be recovered using the original bearer within a fixed
+        five-minute recovery window, even if its original access lifetime elapsed meanwhile. Retries do not
+        extend the window. First refresh invalidates recovery material. Never-upgraded expired or revoked
+        credentials cannot upgrade.
+      security:
+        - zhiyueDeviceBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueDeviceBinding"
+        "400":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZhiyueGrantError"
+        "401":
+          description: Missing, revoked, expired or inactive binding.
           content:
             application/json:
               schema:
@@ -9808,7 +10039,7 @@ components:
     zhiyueDeviceBearer:
       type: http
       scheme: bearer
-      description: 知阅 opaque 24-hour binding credential. Grants only current published reads for its account,
+      description: 知阅 opaque short-lived access credential. Grants only current published reads for its account,
         release-scoped media tickets and self-revocation.
   responses:
     AudioBatchAccepted:
@@ -12412,11 +12643,16 @@ components:
           type: string
           pattern: ^[A-Za-z0-9_-]{43}$
           description: Revocable device credential returned only on successful claim. Never log or include it in URLs.
+        refresh_token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+          description: Persistent device-only renewal credential. Store privately; no idle or total lifetime. Revoked
+            with the logical binding.
         expires_in:
           type: integer
-          enum:
-            - 86400
-          description: Binding lifetime in seconds (24 hours). No refresh credential.
+          minimum: 1
+          maximum: 86400
+          description: Access credential lifetime in seconds, independent of the logical binding.
         account:
           type: object
           additionalProperties: false
@@ -12432,11 +12668,17 @@ components:
         binding_id:
           type: string
           format: uuid
+        confirmation_required:
+          type: boolean
+          description: True only for a newly claimed, pending binding. Persist credentials, then call confirm within
+            five minutes of server-side creation before reading or refreshing.
       required:
         - access_token
+        - refresh_token
         - expires_in
         - account
         - binding_id
+        - confirmation_required
     ZhiyueDeviceApproval:
       type: object
       additionalProperties: false

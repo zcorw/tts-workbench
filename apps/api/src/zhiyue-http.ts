@@ -89,8 +89,21 @@ export function createZhiyueDeviceRouter(
     const { device_code } = z.strictObject({ device_code: opaque }).parse(req.body);
     res.json(await devices.claim(device_code));
   }));
+  router.post("/device/confirm", limit(60), requireJson, route(async (req, res) => {
+    const { refresh_token } = z.strictObject({ refresh_token: opaque }).parse(req.body);
+    await devices.confirm(refresh_token);
+    res.status(204).end();
+  }));
+  router.post("/device/refresh", limit(60), requireJson, route(async (req, res) => {
+    const { refresh_token } = z.strictObject({ refresh_token: opaque }).parse(req.body);
+    res.json(await devices.renew(refresh_token));
+  }));
+  router.post("/device/upgrade", limit(60), requireJson, route(async (req, res) => {
+    z.strictObject({}).parse(req.body);
+    res.json(await devices.renew(bearer(req), true));
+  }));
   router.delete("/device/binding", limit(20), route(async (req, res) => {
-    const binding = await identify(req);
+    const binding = await devices.identify(bearer(req), true);
     await devices.revoke(binding.accountId, binding.id);
     res.status(204).end();
   }));
