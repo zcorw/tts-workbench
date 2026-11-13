@@ -127,5 +127,5 @@ const api={openapi:'3.0.3',info:{title:'Japanese TTS Workbench API',version:'1.4
 addCmsAudioBatchContract(api);
 addMcpContract(api);
 addZhiyueContract(api);
-api.info.version = '1.7.0';
+api.info.version = '1.8.0';
 writeFileSync('docs/openapi.yaml',YAML.stringify(api,{lineWidth:110,aliasDuplicateObjects:false}));

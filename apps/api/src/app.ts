@@ -653,12 +653,14 @@ export async function createApplication(
   app.useGlobalFilters(new ErrorFilter());
   await app.init();
   audioBatches.start();
+  zhiyue?.startCleanup();
   const cmsServer = sites.cmsServer(server);
   let closing: Promise<void> | undefined;
   const close = () =>
     (closing ??= (async () => {
       await Promise.all([closeHttp(cmsServer), closeHttp(app.getHttpServer())]);
       await audioBatches.close();
+      await zhiyue?.close();
       await app.close();
       await speech.close();
       sessions.store.close();
