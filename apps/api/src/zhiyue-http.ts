@@ -2,6 +2,7 @@ import express, { Router, type Request, type Response, type NextFunction } from 
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import type { CmsService } from "./cms.js";
+import { createZhiyueSearch, type SearchResolver } from "./zhiyue-search.js";
 import { ApiError } from "./errors.js";
 import { ZhiyueDeviceService, ZhiyueGrantError } from "./zhiyue-device.js";
 
@@ -42,13 +43,14 @@ function bearer(req: Request) {
   return match[1];
 }
 
-type Release = { articleId: string; id: string; title: string; createdAt: string; text: string; audio: unknown };
+type Release = { articleId: string; id: string; title: string; createdAt: string; text: string; audio: unknown; cms?: { category?: { id: string; name: string; slug?: string } | null } };
 function listItem(release: Release) {
   return {
     id: release.articleId,
     title: release.title,
     publishedAt: release.createdAt,
     hasAudio: Boolean(release.audio),
+    category: release.cms?.category ?? null,
   };
 }
 
@@ -66,6 +68,7 @@ export function byteRange(value: string, length: number) {
 export function createZhiyueDeviceRouter(
   devices: ZhiyueDeviceService, cms: CmsService, origin: string,
   isCms: (req: Request) => boolean,
+  resolveSearch: SearchResolver = createZhiyueSearch(),
 ) {
   const router = Router();
   const identify = (req: Request) => devices.identify(bearer(req));
@@ -99,11 +102,31 @@ export function createZhiyueDeviceRouter(
     const query = z.strictObject({
       limit: z.string().regex(/^\d{1,2}$/).transform(Number).pipe(z.number().int().min(1).max(20)).optional(),
       offset: z.string().regex(/^\d{1,7}$/).transform(Number).optional(),
+      q: z.string().max(120).optional(),
+      category: z.union([uuid, z.literal("uncategorized")]).optional(),
     }).parse(req.query);
     const page = await cms.readArticles({ owner: binding.accountId, categoryIds: [] }, {
-      limit: query.limit ?? 12, offset: query.offset ?? 0,
+      limit: query.limit ?? 12, offset: query.offset ?? 0, q: query.q ?? "", category: query.category,
     });
-    res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset });
+    res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset, navigation: page.navigation });
+  }));
+  router.post("/read/search", limit(12), requireJson, route(async (req, res) => {
+    const binding = await identify(req);
+    const { text } = z.strictObject({ text: z.string().trim().min(1).max(200) }).parse(req.body);
+    const identity = { owner: binding.accountId, categoryIds: [] };
+    const navigation = await cms.readCategories(identity);
+    const intent = await resolveSearch(text, navigation.categories);
+    // 语义请求期间可能已撤销，查询前重新核对同一设备授权。
+    await identify(req);
+    if (intent.q.length > 120) throw new ApiError(400, "SEARCH_TOO_LONG");
+    const filters = { q: intent.q, category: intent.category };
+    const page = intent.noMatch ? { items: [], total: 0, limit: 12, offset: 0 }
+      : await cms.readArticles(identity, { ...filters, category: filters.category || undefined, limit: 12, offset: 0 });
+    const label = intent.noMatch ? "未找到分类" : intent.kind === "all" ? "全部文章" : intent.kind === "category"
+      ? navigation.categories.find((item) => item.id === intent.category)?.name ?? "未分类"
+      : "检索：" + intent.q;
+    res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset,
+      filters, label, kind: intent.kind, noMatch: Boolean(intent.noMatch), resolvedBy: intent.resolvedBy });
   }));
   router.get("/read/articles/:id", limit(120), route(async (req, res) => {
     const binding = await identify(req);

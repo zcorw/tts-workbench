@@ -4,6 +4,7 @@ import {addCmsContract} from './cms-contract.mjs';
 import {addCmsAudioBatchContract} from './cms-audio-batch-contract.mjs';
 import {addMcpContract} from './mcp-contract.mjs';
 import {addZhiyueContract} from './zhiyue-contract.mjs';
+import {addZhiyueSearchContract} from './zhiyue-search-contract.mjs';
 const ref = n => ({$ref:`#/components/schemas/${n}`});
 const str = (extra={}) => ({type:'string',...extra});
 const int = (min=0) => ({type:'integer',minimum:min});
@@ -127,5 +128,6 @@ const api={openapi:'3.0.3',info:{title:'Japanese TTS Workbench API',version:'1.4
 addCmsAudioBatchContract(api);
 addMcpContract(api);
 addZhiyueContract(api);
+addZhiyueSearchContract(api);
 api.info.version = '1.7.0';
 writeFileSync('docs/openapi.yaml',YAML.stringify(api,{lineWidth:110,aliasDuplicateObjects:false}));

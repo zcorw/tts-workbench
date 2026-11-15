@@ -49,6 +49,7 @@ import { ArticleService } from "./articles.js";
 import { CmsService } from "./cms.js";
 import { createCmsRouter } from "./cms-http.js";
 import { ZhiyueDeviceService } from "./zhiyue-device.js";
+import { createZhiyueSearch } from "./zhiyue-search.js";
 import { createZhiyueAccountRouter, createZhiyueDeviceRouter } from "./zhiyue-http.js";
 import { McpBatchService } from "./mcp-batch.js";
 import { McpOAuthService } from "./mcp-oauth.js";
@@ -539,7 +540,9 @@ export async function createApplication(
   });
   if (zhiyue && zhiyueOrigin) {
     // 只有单独的设备路由绕过网页 Cookie/CSRF 流程。
-    server.use("/v1/zhiyue", createZhiyueDeviceRouter(zhiyue, cms, zhiyueOrigin, sites.isCms));
+    server.use("/v1/zhiyue", createZhiyueDeviceRouter(zhiyue, cms, zhiyueOrigin, sites.isCms, createZhiyueSearch({
+      apiKey: config.ZHIYUE_OPENAI_API_KEY, model: config.ZHIYUE_OPENAI_MODEL,
+    })));
   }
   server.use(
     createMcpRouter(
