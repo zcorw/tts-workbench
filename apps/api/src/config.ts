@@ -45,6 +45,8 @@ export const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  ZHIYUE_OPENAI_API_KEY: z.string().min(1).optional(),
+  ZHIYUE_OPENAI_MODEL: z.string().min(1).max(100).optional(),
   CMS_MCP_ENABLED: z
     .enum(["true", "false"])
     .default("false")

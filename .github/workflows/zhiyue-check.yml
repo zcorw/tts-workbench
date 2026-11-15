@@ -68,12 +68,12 @@ jobs:
           npm --prefix apps/api run build
           npm --prefix apps/web run typecheck
           npm --prefix apps/cms run typecheck
-      - name: Run device authorization against isolated PostgreSQL
+      - name: Run device authorization and search against isolated PostgreSQL
         env:
           ZHIYUE_CLIENT_SOURCE: ${{ github.workspace }}/.integration/zhiyue/aiui/lib/zhisheng.js
           ZHIYUE_TEST_DATABASE_URL: postgresql://workbench:isolated_ci_password@127.0.0.1:5432/zhiyue_integration_test
         working-directory: apps/api
-        run: node --experimental-vm-modules --test --test-concurrency=1 test/zhiyue-device.test.mjs test/zhiyue-client.test.mjs
+        run: node --experimental-vm-modules --test --test-concurrency=1 test/zhiyue-device.test.mjs test/zhiyue-client.test.mjs test/zhiyue-search.test.mjs
       - name: Install test browser
         working-directory: apps/cms
         run: npx playwright install --with-deps chromium

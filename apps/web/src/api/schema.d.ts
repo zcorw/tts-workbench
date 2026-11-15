@@ -1317,6 +1317,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/zhiyue/read/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search owned publications using recognized speech text
+         * @description Dedicated device Bearer required. Only recognized text is sent to optional OpenAI Responses; no audio, category catalog, article body, account or device credential is sent. Category names map locally to current authorized frozen publication categories and aliases. Rechecks authorization after semantic resolution. Six-second semantic deadline falls back to local parsing. Unknown or ambiguous categories return noMatch and zero results. First page has limit12; reuse filters for subsequent GET pages without another model call. Requires ZHIYUE_OPENAI_API_KEY and ZHIYUE_OPENAI_MODEL to enable semantics. IP limit12/minute. Feature remains gated by CMS_ZHIYUE_ENABLED.
+         */
+        post: operations["zhiyueSearchArticles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2268,12 +2288,20 @@ export interface components {
             /** Format: date-time */
             publishedAt: string;
             hasAudio: boolean;
+            category?: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                slug: string;
+                revision: number;
+            } | null;
         };
         ZhiyueArticlePage: {
             items: components["schemas"]["ZhiyueArticleItem"][];
             total: number;
             limit: number;
             offset: number;
+            navigation?: components["schemas"]["CmsReadCategoryPage"];
         };
         ZhiyueArticle: {
             /**
@@ -2292,6 +2320,13 @@ export interface components {
             releaseId: string;
             /** @description Exact published text, at most 49152 UTF-8 bytes. */
             text: string;
+            category?: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                slug: string;
+                revision: number;
+            } | null;
         };
         ZhiyueAudioTicket: {
             /**
@@ -2313,6 +2348,28 @@ export interface components {
             code: "RATE_LIMITED";
             /** @enum {string} */
             message: "RATE_LIMITED";
+        };
+        ZhiyueSearchRequest: {
+            text: string;
+        };
+        ZhiyueSearchResult: {
+            items: components["schemas"]["ZhiyueArticleItem"][];
+            total: number;
+            /** @enum {integer} */
+            limit: 12;
+            /** @enum {integer} */
+            offset: 0;
+            filters: {
+                q: string;
+                /** @description Exact published category UUID, uncategorized, or empty string for no category filter. */
+                category: string;
+            };
+            label: string;
+            /** @enum {string} */
+            kind: "article" | "category" | "all";
+            noMatch: boolean;
+            /** @enum {string} */
+            resolvedBy: "openai" | "local" | "fallback";
         };
     };
     responses: {
@@ -9314,6 +9371,8 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                q?: string;
+                category?: string;
             };
             header?: never;
             path?: never;
@@ -9889,6 +9948,91 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Error"];
                 };
+            };
+            /** @description Request rate or capacity exceeded. */
+            429: {
+                headers: {
+                    /** @description Sent for IP rate limiting. */
+                    "Retry-After"?: 60;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Dependency unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    zhiyueSearchArticles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZhiyueSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZhiyueSearchResult"];
+                };
+            };
+            /** @description Invalid request shape, input or identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing, revoked, expired or inactive binding. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
+                };
+            };
+            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request body exceeds 1024 bytes. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expected application/json. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Request rate or capacity exceeded. */
             429: {
