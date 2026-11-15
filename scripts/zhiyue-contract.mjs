@@ -32,9 +32,11 @@ export function addZhiyueContract(api) {
   schema.ZhiyueDeviceClaim = obj({ device_code: opaqueInput });
   schema.ZhiyueDeviceBinding = obj({
     access_token: { ...secret, description: 'Revocable device credential returned only on successful claim. Never log or include it in URLs.' },
-    expires_in: integer({ enum: [86400], description: 'Binding lifetime in seconds (24 hours). No refresh credential.' }),
+    refresh_token: { ...secret, description: 'Persistent device-only renewal credential. Store privately; no idle or total lifetime. Revoked with the logical binding.' },
+    expires_in: integer({ minimum: 1, maximum: 86400, description: 'Access credential lifetime in seconds, independent of the logical binding.' }),
     account: obj({ id: uuid, displayName: str() }),
     binding_id: uuid,
+    confirmation_required: { type: 'boolean', description: 'True only for a newly claimed, pending binding. Persist credentials, then call confirm within five minutes of server-side creation before reading or refreshing.' },
   });
   schema.ZhiyueDeviceApproval = obj({
     user_code: str({ maxLength: 24, description: 'Eight alphanumeric characters after removing whitespace and hyphens. Case insensitive.' }),
@@ -72,7 +74,7 @@ export function addZhiyueContract(api) {
   });
   api.components.securitySchemes.zhiyueDeviceBearer = {
     type: 'http', scheme: 'bearer',
-    description: '知阅 opaque 24-hour binding credential. Grants only current published reads for its account, release-scoped media tickets and self-revocation.',
+    description: '知阅 opaque short-lived access credential. Grants only current published reads for its account, release-scoped media tickets and self-revocation.',
   };
 
   const json = (value, description = 'Success') => ({
@@ -123,10 +125,22 @@ export function addZhiyueContract(api) {
     { '201': json('ZhiyueDeviceAuthorization', 'Pairing request created.'), ...common, ...validation, ...jsonErrors },
     { requestBody: body(obj({})) });
   route('/device/token', 'post', 'zhiyueDeviceClaim', 'Claim an approved 知阅 device binding',
-    'Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange consumes the request once and returns a 24-hour device binding.', [],
+    'Poll with the private device_code no faster than the advertised interval. Approval is required. Successful exchange creates one pending binding. Repeating the same secret device_code within the fixed confirmation window returns the same binding and credentials. It does not extend the deadline or allocate another device. Persist credentials and confirm within five minutes of binding creation; otherwise the server rejects and cleans up the pending binding. Old clients must upgrade to support confirmation.', [],
     { '200': json('ZhiyueDeviceBinding'), ...common, ...jsonErrors,
       '400': json(errors('Error', 'ZhiyueGrantError'), 'Invalid request, pending approval, poll too fast, expired request, or consumed code.') },
     { requestBody: body('ZhiyueDeviceClaim') });
+  route('/device/confirm', 'post', 'zhiyueDeviceConfirm', 'Confirm reliable device credential storage',
+    'Call only after the client durably saves the grant. Pending bindings cannot read, issue media or refresh. Confirmation is idempotent: a confirmed binding returns 204 even after its access token expires. Unconfirmed bindings expire exactly five minutes after creation, independent of retries. A background worker physically deletes expired rows (normally within five seconds); startup and authorization paths also clean up. Existing legacy bindings are already confirmed by migration and are not subject to this deadline.', [],
+    { '204': empty('Binding confirmed or previously confirmed.'), ...common, ...jsonErrors, '400': json('ZhiyueGrantError', 'Unknown, revoked, inactive or expired pending grant.') },
+    { requestBody: body(obj({ refresh_token: opaqueInput })) });
+  route('/device/refresh', 'post', 'zhiyueDeviceRefresh', 'Renew a device access credential',
+    'Use the persistent device refresh credential without a browser session. No idle or total binding expiry. Retrying after a lost response is safe; access credentials rotate, refresh credentials remain stable. Invalid grants require pairing again.', [],
+    { '200': json('ZhiyueDeviceBinding'), ...common, ...jsonErrors, '400': json('ZhiyueGrantError') },
+    { requestBody: body(obj({ refresh_token: opaqueInput })) });
+  route('/device/upgrade', 'post', 'zhiyueDeviceUpgrade', 'Upgrade a valid legacy binding',
+    'A still-valid legacy credential starts upgrade. It returns a confirmed renewable binding, not a new pending device. Lost responses can be recovered using the original bearer within a fixed five-minute recovery window, even if its original access lifetime elapsed meanwhile. Retries do not extend the window. First refresh invalidates recovery material. Never-upgraded expired or revoked credentials cannot upgrade.', deviceAuth,
+    { '200': json('ZhiyueDeviceBinding'), ...common, ...jsonErrors, ...deviceAuthError, '400': json('ZhiyueGrantError') },
+    { requestBody: body(obj({})) });
   route('/device/binding', 'delete', 'zhiyueDeviceUnbind', 'Revoke the calling 知阅 binding',
     'Revokes the binding and its media tickets. A revoked device must pair again.', deviceAuth,
     { '204': empty('Current binding revoked.'), ...common, ...deviceAuthError });

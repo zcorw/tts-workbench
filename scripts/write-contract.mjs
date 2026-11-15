@@ -129,5 +129,5 @@ addCmsAudioBatchContract(api);
 addMcpContract(api);
 addZhiyueContract(api);
 addZhiyueSearchContract(api);
-api.info.version = '1.7.0';
+api.info.version = '1.8.0';
 writeFileSync('docs/openapi.yaml',YAML.stringify(api,{lineWidth:110,aliasDuplicateObjects:false}));
