@@ -341,7 +341,7 @@ export class ZhiyueDeviceService {
     await this.pool.query("DELETE FROM wb_zhiyue_bindings WHERE id=$1 AND account_id=$2", [bindingId, accountId]);
   }
 
-  async issueMedia(bindingId: string, releaseId: string) {
+  async issueMedia(bindingId: string, releaseId: string, draftArticleId?: string) {
     if (!uuidPattern.test(bindingId) || !uuidPattern.test(releaseId))
       throw new ZhiyueGrantError("invalid_request", 400);
     return this.transaction(async (client) => {
@@ -364,12 +364,12 @@ export class ZhiyueDeviceService {
 
       const ticket = secret();
       const { rows: [issued] } = await client.query<{ expires_in: number }>(
-        `INSERT INTO wb_zhiyue_media_tickets(token_hash,binding_id,release_id,expires_at)
-         SELECT $1,b.id,$3,LEAST(b.expires_at,statement_timestamp()+$4*interval '1 second')
+        `INSERT INTO wb_zhiyue_media_tickets(token_hash,binding_id,release_id,draft_article_id,expires_at)
+         SELECT $1,b.id,$3,$5,LEAST(b.expires_at,statement_timestamp()+$4*interval '1 second')
          FROM wb_zhiyue_bindings b JOIN ac_accounts a ON a.id=b.account_id
          WHERE b.id=$2 AND b.expires_at>statement_timestamp() AND a.status='active' AND b.confirmed_at IS NOT NULL
          RETURNING CEIL(EXTRACT(EPOCH FROM expires_at-statement_timestamp()))::integer AS expires_in`,
-        [hash(ticket), bindingId, releaseId, mediaTtl],
+        [hash(ticket), bindingId, releaseId, mediaTtl, draftArticleId ?? null],
       );
       if (!issued) throw new ZhiyueGrantError("invalid_token", 401);
       return { ticket, expires_in: issued.expires_in };
@@ -378,8 +378,8 @@ export class ZhiyueDeviceService {
 
   async identifyMedia(ticket: string) {
     if (!tokenPattern.test(ticket)) throw new ZhiyueGrantError("invalid_token", 401);
-    const { rows: [media] } = await this.pool.query<{ accountId: string; releaseId: string }>(
-      `SELECT b.account_id AS "accountId",t.release_id AS "releaseId"
+    const { rows: [media] } = await this.pool.query<{ accountId: string; releaseId: string; draftArticleId: string | null }>(
+      `SELECT b.account_id AS "accountId",t.release_id AS "releaseId",t.draft_article_id AS "draftArticleId"
        FROM wb_zhiyue_media_tickets t JOIN wb_zhiyue_bindings b ON b.id=t.binding_id
        JOIN ac_accounts a ON a.id=b.account_id
        WHERE t.token_hash=$1 AND t.expires_at>now() AND b.expires_at>now() AND a.status='active' AND b.confirmed_at IS NOT NULL`,

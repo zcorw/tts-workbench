@@ -138,6 +138,19 @@ test("Pinned Zhiyue client over real HTTP", { skip: !db || !process.env.ZHIYUE_C
   assert.equal(confirmed.confirmationRequired ?? confirmed.pendingConfirmation, false);
   assert.equal(confirmationCalls, 2);
   assert.equal((await client.listArticles(0)).total, 0);
+  // The pinned client must read saved drafts explicitly while default reads stay publication-only.
+  const draftId = randomUUID();
+  await runtime.pool.query("INSERT INTO wb_articles(id,account_id,title,text) VALUES($1,$2,'Synthetic draft','Saved draft text')", [draftId, owner.account.id]);
+  assert.equal((await client.listArticles(0)).total, 0);
+  const draftPage = await client.listArticles(0, undefined, { status: "draft" });
+  assert.equal(draftPage.total, 1);
+  assert.equal(draftPage.items[0].status, "draft");
+  assert.equal((await client.listArticles(0, undefined, { status: "all" })).total, 1);
+  const draft = await client.getArticle(draftId, undefined, "draft");
+  assert.equal(draft.publishedAt, null);
+  assert.equal(draft.paragraphs[0], "Saved draft text");
+  await assert.rejects(client.getArticle(draftId), { code: "not_found" });
+  await runtime.pool.query("DELETE FROM wb_articles WHERE account_id=$1 AND id=$2", [owner.account.id, draftId]);
   // Concurrent reads share a single renewal; successive cycles retain one binding.
   for (let cycle = 0; cycle < 3; cycle++) {
     const current = client.getBinding();

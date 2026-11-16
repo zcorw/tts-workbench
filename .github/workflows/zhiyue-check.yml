@@ -43,7 +43,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: zcorw/zhiyue
-          ref: 96e1a940019cf6a8c8ea8b1c2bf6cc5c0a08915c
+          ref: 056a6b58cc38bee1f1016a6a67d247d07b395168
           path: .integration/zhiyue
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -73,7 +73,7 @@ jobs:
           ZHIYUE_CLIENT_SOURCE: ${{ github.workspace }}/.integration/zhiyue/aiui/lib/zhisheng.js
           ZHIYUE_TEST_DATABASE_URL: postgresql://workbench:isolated_ci_password@127.0.0.1:5432/zhiyue_integration_test
         working-directory: apps/api
-        run: node --experimental-vm-modules --test --test-concurrency=1 test/zhiyue-device.test.mjs test/zhiyue-device-identity.test.mjs test/zhiyue-client.test.mjs test/zhiyue-search.test.mjs
+        run: node --experimental-vm-modules --test --test-concurrency=1 test/zhiyue-device.test.mjs test/zhiyue-device-identity.test.mjs test/zhiyue-client.test.mjs test/zhiyue-search.test.mjs test/zhiyue-content.test.mjs
       - name: Install test browser
         working-directory: apps/cms
         run: npx playwright install --with-deps chromium
