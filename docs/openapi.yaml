@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Japanese TTS Workbench API
-  version: 1.8.0
+  version: 1.9.0
   description: "Same-origin browser API. All schemas reject unknown fields and null unless explicitly nullable.
     CMS publications remain private to their owner or a narrowly scoped read credential; no anonymous content
     access. All responses include X-Request-Id and Cache-Control: no-store. Public host Nginx terminates
@@ -9052,6 +9052,15 @@ paths:
               type: object
               additionalProperties: false
               properties: {}
+      parameters:
+        - name: X-Zhiyue-Device-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Persistent installation UUID, not an authentication credential. Re-pairing after phone approval
+            reuses one logical binding per account and installation.
       responses:
         "201":
           description: Pairing request created.
@@ -9271,6 +9280,15 @@ paths:
                   pattern: ^[A-Za-z0-9_-]{32,128}$
               required:
                 - refresh_token
+      parameters:
+        - name: X-Zhiyue-Device-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Persistent installation UUID, not an authentication credential. Re-pairing after phone approval
+            reuses one logical binding per account and installation.
       responses:
         "200":
           description: Success
@@ -9343,6 +9361,15 @@ paths:
               type: object
               additionalProperties: false
               properties: {}
+      parameters:
+        - name: X-Zhiyue-Device-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Persistent installation UUID, not an authentication credential. Re-pairing after phone approval
+            reuses one logical binding per account and installation.
       responses:
         "200":
           description: Success
@@ -12795,10 +12822,22 @@ components:
               expiresAt:
                 type: string
                 format: date-time
+                description: Access credential expiry only; renewable bindings do not expire at this time.
+              deviceId:
+                type: string
+                format: uuid
+                nullable: true
+              renewable:
+                type: boolean
+              confirmationRequired:
+                type: boolean
             required:
               - id
               - createdAt
               - expiresAt
+              - deviceId
+              - renewable
+              - confirmationRequired
       required:
         - items
     ZhiyueArticleItem:

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, webcrypto } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, readFile, rmdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { createApplication } from "../dist/app.js";
 import { readConfig } from "../dist/config.js";
@@ -73,15 +74,27 @@ test("Pinned Zhiyue client over real HTTP", { skip: !db || !process.env.ZHIYUE_C
     return { account, request };
   }
   const { createContext, SourceTextModule, SyntheticModule } = await import("node:vm");
-  const context = createContext({ URL, AbortController, AbortSignal, Date, setTimeout, clearTimeout });
-  const module = new SourceTextModule(await readFile(process.env.ZHIYUE_CLIENT_SOURCE, "utf8"), { context });
-  await module.link((specifier) => {
-    assert.equal(specifier, "../data/zhisheng-config.js");
-    return new SyntheticModule(["zhishengEnabled", "zhishengOrigin"], function () {
-      this.setExport("zhishengEnabled", false);
-      this.setExport("zhishengOrigin", "");
-    }, { context });
+  const timers = new Map();
+  let nextTimer = 0;
+  const context = createContext({ URL, AbortController, AbortSignal, Date, crypto: webcrypto,
+    setTimeout(fn, delay) { const id = ++nextTimer; timers.set(id, setTimeout(() => { timers.delete(id); fn(); }, delay)); return id; },
+    clearTimeout(id) { clearTimeout(timers.get(id)); timers.delete(id); },
   });
+  t.after(() => { for (const timer of timers.values()) clearTimeout(timer); });
+  const modules = new Map();
+  async function load(identifier) {
+    if (modules.has(identifier)) return modules.get(identifier);
+    let loaded;
+    if (identifier === "wx") loaded = new SyntheticModule(["default"], function () { this.setExport("default", {}); }, { context });
+    else if (identifier.endsWith("/data/zhisheng-config.js")) loaded = new SyntheticModule(["zhishengEnabled", "zhishengOrigin"], function () {
+      this.setExport("zhishengEnabled", false); this.setExport("zhishengOrigin", "");
+    }, { context });
+    else loaded = new SourceTextModule(await readFile(fileURLToPath(identifier), "utf8"), { context, identifier });
+    modules.set(identifier, loaded);
+    return loaded;
+  }
+  const module = await load(pathToFileURL(process.env.ZHIYUE_CLIENT_SOURCE).href);
+  await module.link((specifier, importer) => load(specifier.startsWith(".") ? new URL(specifier, importer.identifier).href : specifier));
   await module.evaluate();
   const owner = await browser("Synthetic real client");
   const storage = new Map();
@@ -117,18 +130,19 @@ test("Pinned Zhiyue client over real HTTP", { skip: !db || !process.env.ZHIYUE_C
   const pairing = await client.beginPairing();
   ok(await owner.request(`${route}/account/approve`, "POST", { user_code: pairing.userCode, expected_account_id: owner.account.id }), 204);
   const pending = await client.exchangeDeviceCode(pairing.deviceCode);
-  assert.equal(pending.pendingConfirmation, true);
+  assert.equal(pending.confirmationRequired ?? pending.pendingConfirmation, true);
   client.saveBinding(pending);
   await assert.rejects(client.ensureBinding());
-  assert.equal(client.getBinding().pendingConfirmation, true);
+  assert.equal(client.getBinding().confirmationRequired ?? client.getBinding().pendingConfirmation, true);
   const confirmed = await client.ensureBinding();
-  assert.equal(confirmed.pendingConfirmation, false);
+  assert.equal(confirmed.confirmationRequired ?? confirmed.pendingConfirmation, false);
   assert.equal(confirmationCalls, 2);
   assert.equal((await client.listArticles(0)).total, 0);
   // Concurrent reads share a single renewal; successive cycles retain one binding.
   for (let cycle = 0; cycle < 3; cycle++) {
     const current = client.getBinding();
-    client.saveBinding({ ...current, expiresAt: Date.now() + 1000 }, current);
+    const key = [...storage.keys()].find((key) => key.startsWith("zhiyue.binding."));
+    storage.set(key, JSON.stringify({ ...current, expiresAt: Date.now() - 1000 }));
     const before = refreshCalls;
     await Promise.all([client.listArticles(0), client.listArticles(0)]);
     assert.equal(refreshCalls, before + 1);
