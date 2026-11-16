@@ -2274,8 +2274,15 @@ export interface components {
                 id: string;
                 /** Format: date-time */
                 createdAt: string;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description Access credential expiry only; renewable bindings do not expire at this time.
+                 */
                 expiresAt: string;
+                /** Format: uuid */
+                deviceId: string | null;
+                renewable: boolean;
+                confirmationRequired: boolean;
             }[];
         };
         ZhiyueArticleItem: {
@@ -8902,7 +8909,10 @@ export interface operations {
     zhiyueDeviceAuthorize: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Persistent installation UUID, not an authentication credential. Re-pairing after phone approval reuses one logical binding per account and installation. */
+                "X-Zhiyue-Device-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -9142,7 +9152,10 @@ export interface operations {
     zhiyueDeviceRefresh: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Persistent installation UUID, not an authentication credential. Re-pairing after phone approval reuses one logical binding per account and installation. */
+                "X-Zhiyue-Device-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -9224,7 +9237,10 @@ export interface operations {
     zhiyueDeviceUpgrade: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Persistent installation UUID, not an authentication credential. Re-pairing after phone approval reuses one logical binding per account and installation. */
+                "X-Zhiyue-Device-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };

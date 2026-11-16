@@ -11,7 +11,7 @@ if (!['127.0.0.1', 'localhost'].includes(parsed.hostname) || parsed.protocol !==
 const out = process.env.QA_OUTPUT_DIR || '/tmp/zhiyue-connection-qa';
 fs.mkdirSync(out, { recursive: true });
 const account = { id: '00000000-0000-4000-8000-000000000001', login: 'synthetic', displayName: 'Synthetic owner' };
-const binding = { id: '00000000-0000-4000-8000-000000000002', createdAt: '2026-11-12T00:00:00Z', expiresAt: '2026-11-13T00:00:00Z' };
+const binding = { id: '00000000-0000-4000-8000-000000000002', createdAt: '2026-11-12T00:00:00Z', expiresAt: '2026-11-13T00:00:00Z', renewable: true, confirmationRequired: false, deviceId: '00000000-0000-4000-8000-000000000003' };
 (async () => {
   const browser = await chromium.launch({ headless: true,
     executablePath: process.env.CHROMIUM_PATH || (fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined),
@@ -50,6 +50,8 @@ const binding = { id: '00000000-0000-4000-8000-000000000002', createdAt: '2026-1
     await page.getByRole('heading', { name: '连接知阅', exact: true }).waitFor();
     await page.getByText('Synthetic owner', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: '解除绑定', exact: true }).waitFor();
+    await page.getByText('长期绑定 · 自动续期', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/到期时间：/).count(), 0);
     assert.equal(await page.getByRole('button', { name: '确认连接', exact: true }).isEnabled(), true);
     await page.getByLabel('眼镜配对码').fill('invalid');
     await page.getByRole('button', { name: '确认连接', exact: true }).click();

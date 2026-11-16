@@ -284,7 +284,7 @@ test("Migration preserves existing devices and does not impose the confirmation 
   const legacyToken = "L".repeat(43), expiredToken = "E".repeat(43);
   const options = { databaseUrl: db, dir: fileURLToPath(new URL("../migrations/", import.meta.url)), migrationsTable: "wb_migrations", log: () => {} };
   try {
-    await runner({ ...options, direction: "down", count: 1 });
+    await runner({ ...options, direction: "down", count: 2 });
     await pool.query("INSERT INTO ac_accounts(id,login,display_name,password_hash,status) VALUES($1,$2,'Synthetic legacy','not-a-real-secret','active')", [accountId, `migration-${accountId}`]);
     await pool.query(`INSERT INTO wb_zhiyue_bindings(id,account_id,token_hash,created_at,expires_at)
       VALUES($1,$2,$3,now()-interval '12 hours',now()+interval '12 hours'),

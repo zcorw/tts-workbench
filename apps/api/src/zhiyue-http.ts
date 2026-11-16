@@ -71,6 +71,10 @@ export function createZhiyueDeviceRouter(
   resolveSearch: SearchResolver = createZhiyueSearch(),
 ) {
   const router = Router();
+  const deviceId = (req: Request) => {
+    const value = req.get("X-Zhiyue-Device-Id");
+    return value === undefined ? undefined : uuid.parse(value);
+  };
   const identify = (req: Request) => devices.identify(bearer(req));
   const requireJson = (req: Request, _res: Response, next: NextFunction) => {
     if (!req.is("application/json")) return next(new ApiError(415, "UNSUPPORTED_MEDIA_TYPE"));
@@ -86,7 +90,7 @@ export function createZhiyueDeviceRouter(
   });
   router.post("/device/authorize", limit(12), requireJson, route(async (req, res) => {
     z.strictObject({}).parse(req.body);
-    res.status(201).json({ ...await devices.start(), verification_uri: `${origin}/connections/zhiyue` });
+    res.status(201).json({ ...await devices.start(deviceId(req)), verification_uri: `${origin}/connections/zhiyue` });
   }));
   router.post("/device/token", limit(60), requireJson, route(async (req, res) => {
     const { device_code } = z.strictObject({ device_code: opaque }).parse(req.body);
@@ -99,11 +103,11 @@ export function createZhiyueDeviceRouter(
   }));
   router.post("/device/refresh", limit(60), requireJson, route(async (req, res) => {
     const { refresh_token } = z.strictObject({ refresh_token: opaque }).parse(req.body);
-    res.json(await devices.renew(refresh_token));
+    res.json(await devices.renew(refresh_token, false, deviceId(req)));
   }));
   router.post("/device/upgrade", limit(60), requireJson, route(async (req, res) => {
     z.strictObject({}).parse(req.body);
-    res.json(await devices.renew(bearer(req), true));
+    res.json(await devices.renew(bearer(req), true, deviceId(req)));
   }));
   router.delete("/device/binding", limit(20), route(async (req, res) => {
     const binding = await devices.identify(bearer(req), true);

@@ -93,7 +93,8 @@ export class ZhiyueDeviceService {
     await this.cleanupRun;
   }
 
-  async start() {
+  async start(deviceId?: string) {
+    if (deviceId && !uuidPattern.test(deviceId)) throw new ZhiyueGrantError("invalid_request", 400);
     await this.cleanupExpired();
     const result = await this.transaction(async (client) => {
       // 序列化所有实例的申请配额检查，锁随事务释放。
@@ -109,10 +110,10 @@ export class ZhiyueDeviceService {
         const deviceCode = secret();
         const userCode = Array.from({ length: 8 }, () => alphabet[randomInt(alphabet.length)]).join("");
         const { rowCount } = await client.query(
-          `INSERT INTO wb_zhiyue_device_requests(device_hash,user_hash,expires_at)
-           VALUES($1,$2,statement_timestamp()+$3*interval '1 second')
+          `INSERT INTO wb_zhiyue_device_requests(device_hash,user_hash,expires_at,device_id)
+           VALUES($1,$2,statement_timestamp()+$3*interval '1 second',$4)
            ON CONFLICT DO NOTHING`,
-          [hash(deviceCode), hash(userCode), requestTtl],
+          [hash(deviceCode), hash(userCode), requestTtl, deviceId ?? null],
         );
         if (rowCount) {
           return {
@@ -157,10 +158,10 @@ export class ZhiyueDeviceService {
          WHERE id=$1 AND status='active' FOR NO KEY UPDATE`, [observed.account_id],
       ) : { rows: [] };
       if (observed.account_id && !account) throw new ZhiyueGrantError("invalid_grant", 400);
-      const { rows: [request] } = await client.query<{ binding_id: string | null; claim_nonce: string | null }>(
+      const { rows: [request] } = await client.query<{ binding_id: string | null; claim_nonce: string | null; device_id: string | null }>(
         `UPDATE wb_zhiyue_device_requests SET next_poll_at=clock_timestamp()+$2*interval '1 second'
          WHERE device_hash=$1 AND expires_at>clock_timestamp()
-           AND (next_poll_at IS NULL OR next_poll_at<=clock_timestamp()) RETURNING binding_id,claim_nonce`,
+           AND (next_poll_at IS NULL OR next_poll_at<=clock_timestamp()) RETURNING binding_id,claim_nonce,device_id`,
         [digest, pollInterval],
       );
       if (!request) {
@@ -180,17 +181,31 @@ export class ZhiyueDeviceService {
       const refreshToken = createHmac("sha256", nonce).update("zhiyue-claim-refresh-v1:" + deviceCode).digest("base64url");
       let bindingId = request.binding_id;
       if (!bindingId) {
+        const { rows: [existing] } = request.device_id ? await client.query<{ id: string }>(
+          "SELECT id FROM wb_zhiyue_bindings WHERE account_id=$1 AND device_id=$2 FOR UPDATE",
+          [account.id, request.device_id],
+        ) : { rows: [] };
         const { rows: [count] } = await client.query<{ total: number }>(
           `SELECT count(*)::integer AS total FROM wb_zhiyue_bindings WHERE account_id=$1
            AND ((confirmed_at IS NOT NULL AND (expires_at>clock_timestamp() OR refresh_hash IS NOT NULL))
              OR (confirmed_at IS NULL AND confirm_by>clock_timestamp()))`, [account.id],
         );
-        if (count.total >= bindingLimit) throw new ZhiyueGrantError("temporarily_unavailable", 429);
-        bindingId = randomUUID();
-        await client.query(
-          `INSERT INTO wb_zhiyue_bindings(id,account_id,token_hash,refresh_hash,created_at,expires_at,confirm_by)
-           VALUES($1,$2,$3,$4,clock_timestamp(),clock_timestamp()+$5*interval '1 second',clock_timestamp()+$6*interval '1 second')`,
-          [bindingId, account.id, hash(accessToken), hash(refreshToken), bindingTtl, confirmationTtl],
+        if (!existing && count.total >= bindingLimit) throw new ZhiyueGrantError("temporarily_unavailable", 429);
+        bindingId = existing?.id ?? randomUUID();
+        if (existing) {
+          // 手机已重新批准同一安装；复用逻辑设备，替换旧凭据及其媒体票。
+          await client.query("DELETE FROM wb_zhiyue_media_tickets WHERE binding_id=$1", [bindingId]);
+          await client.query("DELETE FROM wb_zhiyue_device_requests WHERE binding_id=$1 AND device_hash<>$2", [bindingId, digest]);
+          await client.query(
+            `UPDATE wb_zhiyue_bindings SET token_hash=$2,refresh_hash=$3,confirmed_at=NULL,
+             confirm_by=clock_timestamp()+$5*interval '1 second',expires_at=clock_timestamp()+$4*interval '1 second',
+             upgrade_token_hash=NULL,upgrade_nonce=NULL,upgrade_until=NULL WHERE id=$1`,
+            [bindingId, hash(accessToken), hash(refreshToken), bindingTtl, confirmationTtl],
+          );
+        } else await client.query(
+          `INSERT INTO wb_zhiyue_bindings(id,account_id,token_hash,refresh_hash,created_at,expires_at,confirm_by,device_id)
+           VALUES($1,$2,$3,$4,clock_timestamp(),clock_timestamp()+$5*interval '1 second',clock_timestamp()+$6*interval '1 second',$7)`,
+          [bindingId, account.id, hash(accessToken), hash(refreshToken), bindingTtl, confirmationTtl, request.device_id],
         );
         await client.query(
           `UPDATE wb_zhiyue_device_requests SET binding_id=$2,claim_nonce=$3,expires_at=(SELECT confirm_by FROM wb_zhiyue_bindings WHERE id=$2)
@@ -232,7 +247,8 @@ export class ZhiyueDeviceService {
     });
   }
 
-  async renew(credential: string, upgrade = false) {
+  async renew(credential: string, upgrade = false, deviceId?: string) {
+    if (deviceId && !uuidPattern.test(deviceId)) throw new ZhiyueGrantError("invalid_request", 400);
     if (!tokenPattern.test(credential)) throw new ZhiyueGrantError("invalid_grant", 400);
     await this.cleanupExpired();
     return this.transaction(async (client) => {
@@ -247,14 +263,23 @@ export class ZhiyueDeviceService {
          WHERE id=$1 AND status='active' FOR NO KEY UPDATE`, [owner.account_id],
       );
       if (!account) throw new ZhiyueGrantError("invalid_grant", 400);
-      const { rows: [binding] } = await client.query<{ id: string; expires_in: number; refresh_hash: string | null; upgrade_token_hash: string | null; upgrade_nonce: string | null; upgrade_until: Date | null }>(
-        `SELECT id,refresh_hash,upgrade_token_hash,upgrade_nonce,upgrade_until,CEIL(EXTRACT(EPOCH FROM expires_at-clock_timestamp()))::integer AS expires_in
+      const { rows: [binding] } = await client.query<{ id: string; expires_in: number; refresh_hash: string | null; upgrade_token_hash: string | null; upgrade_nonce: string | null; upgrade_until: Date | null; device_id: string | null }>(
+        `SELECT id,device_id,refresh_hash,upgrade_token_hash,upgrade_nonce,upgrade_until,CEIL(EXTRACT(EPOCH FROM expires_at-clock_timestamp()))::integer AS expires_in
          FROM wb_zhiyue_bindings WHERE account_id=$2 AND ${upgrade ? "(token_hash=$1 OR upgrade_token_hash=$1)" : "refresh_hash=$1"}
          AND confirmed_at IS NOT NULL
          ${upgrade ? "AND ((refresh_hash IS NULL AND expires_at>clock_timestamp()) OR (upgrade_token_hash=$1 AND upgrade_until>clock_timestamp()))" : ""} FOR UPDATE`,
         [hash(credential), account.id],
       );
       if (!binding) throw new ZhiyueGrantError("invalid_grant", 400);
+      if (deviceId) {
+        if (binding.device_id && binding.device_id !== deviceId) throw new ZhiyueGrantError("invalid_grant", 400);
+        const { rows: [other] } = await client.query<{ id: string }>(
+          "SELECT id FROM wb_zhiyue_bindings WHERE account_id=$1 AND device_id=$2 AND id<>$3",
+          [account.id, deviceId, binding.id],
+        );
+        if (other) throw new ZhiyueGrantError("invalid_grant", 400);
+        await client.query("UPDATE wb_zhiyue_bindings SET device_id=$2 WHERE id=$1 AND device_id IS NULL", [binding.id, deviceId]);
+      }
       // A private recovery nonce prevents a leaked legacy bearer from computing the
       // long-lived refresh credential after its bounded upgrade-recovery window.
       const nonce = upgrade ? (binding.upgrade_nonce ?? secret()) : null;
@@ -293,18 +318,20 @@ export class ZhiyueDeviceService {
 
   async list(accountId: string) {
     await this.cleanupExpired();
-    const { rows } = await this.pool.query<{ id: string; created_at: Date; expires_at: Date }>(
-      `SELECT b.id,b.created_at,b.expires_at FROM wb_zhiyue_bindings b
+    const { rows } = await this.pool.query<{ id: string; created_at: Date; expires_at: Date; device_id: string | null; renewable: boolean; confirmation_required: boolean }>(
+      `SELECT b.id,b.created_at,b.expires_at,b.device_id,(b.refresh_hash IS NOT NULL AND b.confirmed_at IS NOT NULL) AS renewable,
+         (b.confirmed_at IS NULL) AS confirmation_required FROM wb_zhiyue_bindings b
        JOIN ac_accounts a ON a.id=b.account_id
        WHERE b.account_id=$1 AND (b.expires_at>now() OR b.refresh_hash IS NOT NULL) AND a.status='active'
        ORDER BY b.created_at DESC,b.id DESC`,
       [accountId],
     );
     return {
-      items: rows.map(({ id, created_at, expires_at }) => ({
+      items: rows.map(({ id, created_at, expires_at, device_id, renewable, confirmation_required }) => ({
         id,
         createdAt: created_at.toISOString(),
         expiresAt: expires_at.toISOString(),
+        deviceId: device_id, renewable, confirmationRequired: confirmation_required,
       })),
     };
   }

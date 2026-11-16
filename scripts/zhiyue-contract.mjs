@@ -45,7 +45,10 @@ export function addZhiyueContract(api) {
   schema.ZhiyueBindings = obj({
     items: {
       type: 'array', maxItems: 8,
-      items: obj({ id: uuid, createdAt: time, expiresAt: time }),
+      items: obj({ id: uuid, createdAt: time,
+        expiresAt: { ...time, description: 'Access credential expiry only; renewable bindings do not expire at this time.' },
+        deviceId: { ...uuid, nullable: true }, renewable: { type: 'boolean' },
+        confirmationRequired: { type: 'boolean' } }),
     },
   });
   schema.ZhiyueArticleItem = obj(article);
@@ -117,6 +120,11 @@ export function addZhiyueContract(api) {
   const route = (suffix, method, operationId, summary, detail, security, responses, extra = {}) => {
     const pathName = `/v1/zhiyue${suffix}`;
     api.paths[pathName] ??= {};
+    if (['/device/authorize', '/device/refresh', '/device/upgrade'].includes(suffix)) {
+      extra.parameters = [...(extra.parameters ?? []), { name: 'X-Zhiyue-Device-Id', in: 'header',
+        required: false, schema: uuid,
+        description: 'Persistent installation UUID, not an authentication credential. Re-pairing after phone approval reuses one logical binding per account and installation.' }];
+    }
     api.paths[pathName][method] = { operationId, summary, description: `${enabled} ${detail}`, security, ...extra, responses };
   };
 
