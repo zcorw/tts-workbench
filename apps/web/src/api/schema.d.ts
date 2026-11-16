@@ -1185,8 +1185,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List owned articles by publication status
-         * @description Default published preserves frozen releases. draft means no current published release, including withdrawn articles; reads latest saved draft and live draft category. all combines each current publication and unpublished draft once. Never exposes an unpublished edit of an already-published article. Default published retains publication-time/release-ID order. draft/all sort by publication time or draft save time DESC then article ID DESC. q/category, totals, page and category navigation use the same selected status and one database snapshot. Lists omit body and audio bytes. Owner comes only from the valid device binding.
+         * List the current published articles of the binding owner
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Paged newest-first summaries. Only the account associated with the device binding is read. Article bodies, drafts and audio bytes are omitted from the list.
          */
         get: operations["zhiyueReadArticles"];
         put?: never;
@@ -1205,8 +1205,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read an owned article by publication status
-         * @description Default published preserves frozen releases. draft means no current published release, including withdrawn articles; reads latest saved draft and live draft category. all combines each current publication and unpublished draft once. Never exposes an unpublished edit of an already-published article. Default published retains publication-time/release-ID order. draft/all sort by publication time or draft save time DESC then article ID DESC. q/category, totals, page and category navigation use the same selected status and one database snapshot. Lists omit body and audio bytes. Owner comes only from the valid device binding.
+         * Read the current publication of an owned article
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The path id is the article ID. The response contains the frozen publication text and its releaseId.
          */
         get: operations["zhiyueReadArticle"];
         put?: never;
@@ -1245,8 +1245,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Play version-scoped article MP3
-         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The private ticket in the path grants only this release audio and requires a live device binding and an active owner. A withdrawn or replaced publication is unavailable. Supports one byte range, including open-ended and suffix ranges. No device bearer or browser cookie is needed. Response is no-store. Do not log the ticket or the full request path. Draft tickets also require the source article to remain unpublished and its current saved audioId to match. Replaced/deleted/published drafts return404. Revoked binding returns401.
+         * Play current published MP3 with a scoped media ticket
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. The private ticket in the path grants only this release audio and requires a live device binding and an active owner. A withdrawn or replaced publication is unavailable. Supports one byte range, including open-ended and suffix ranges. No device bearer or browser cookie is needed. Response is no-store. Do not log the ticket or the full request path.
          */
         get: operations["zhiyueReadAudio"];
         put?: never;
@@ -1327,30 +1327,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Search owned articles within selected publication status
-         * @description Dedicated device Bearer required. Only recognized text is sent to optional OpenAI Responses; no audio, category catalog, article body, account or device credential is sent. Category names map locally to current authorized frozen publication categories and aliases. Rechecks authorization after semantic resolution. Six-second semantic deadline falls back to local parsing. Unknown or ambiguous categories return noMatch and zero results. First page has limit12; reuse filters for subsequent GET pages without another model call. Requires ZHIYUE_OPENAI_API_KEY and ZHIYUE_OPENAI_MODEL to enable semantics. IP limit12/minute. Feature remains gated by CMS_ZHIYUE_ENABLED. Optional status defaults to published; server maps categories only within that status. Returned filters include status for subsequent pages. Status is explicit and is not decided by the semantic model.
+         * Search owned publications using recognized speech text
+         * @description Dedicated device Bearer required. Only recognized text is sent to optional OpenAI Responses; no audio, category catalog, article body, account or device credential is sent. Category names map locally to current authorized frozen publication categories and aliases. Rechecks authorization after semantic resolution. Six-second semantic deadline falls back to local parsing. Unknown or ambiguous categories return noMatch and zero results. First page has limit12; reuse filters for subsequent GET pages without another model call. Requires ZHIYUE_OPENAI_API_KEY and ZHIYUE_OPENAI_MODEL to enable semantics. IP limit12/minute. Feature remains gated by CMS_ZHIYUE_ENABLED.
          */
         post: operations["zhiyueSearchArticles"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/zhiyue/read/drafts/{id}/audio-ticket": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Issue a version-scoped ticket for owned draft audio
-         * @description Dedicated device Bearer; id is the owned unpublished article ID. JSON audioId must match its current last successful saved audio. No generation. Returns404 on absent/replaced audio, another owner, or a currently-published article. Ticket remains bound to this device, article and audioId; every media read rechecks them. Drafts may have stale audio as in CMS; no paid regeneration. Same byte ranges and size limits as publication media.
-         */
-        post: operations["zhiyueIssueDraftAudioTicket"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2292,11 +2272,8 @@ export interface components {
             items: {
                 /** Format: uuid */
                 id: string;
-                /**
-                 * Format: date-time
-                 * @description Publication time; null for drafts.
-                 */
-                createdAt: string | null;
+                /** Format: date-time */
+                createdAt: string;
                 /**
                  * Format: date-time
                  * @description Access credential expiry only; renewable bindings do not expire at this time.
@@ -2315,11 +2292,8 @@ export interface components {
              */
             id: string;
             title: string;
-            /**
-             * Format: date-time
-             * @description Publication time; null for drafts.
-             */
-            publishedAt: string | null;
+            /** Format: date-time */
+            publishedAt: string;
             hasAudio: boolean;
             category?: {
                 /** Format: uuid */
@@ -2328,20 +2302,13 @@ export interface components {
                 slug: string;
                 revision: number;
             } | null;
-            /** @enum {string} */
-            status: "published" | "draft";
-            /**
-             * Format: date-time
-             * @description Draft save time or publication snapshot time.
-             */
-            updatedAt: string;
         };
         ZhiyueArticlePage: {
             items: components["schemas"]["ZhiyueArticleItem"][];
             total: number;
             limit: number;
             offset: number;
-            navigation?: components["schemas"]["ZhiyueReadCategoryPage"];
+            navigation?: components["schemas"]["CmsReadCategoryPage"];
         };
         ZhiyueArticle: {
             /**
@@ -2350,15 +2317,15 @@ export interface components {
              */
             id: string;
             title: string;
-            /**
-             * Format: date-time
-             * @description Publication time; null for drafts.
-             */
-            publishedAt: string | null;
+            /** Format: date-time */
+            publishedAt: string;
             hasAudio: boolean;
-            /** @description Publication ID, or draft audioId when present, otherwise a draft revision handle. */
+            /**
+             * Format: uuid
+             * @description Current publication ID, used for the audio-ticket request.
+             */
             releaseId: string;
-            /** @description Exact saved draft or current publication text; at most 49152 UTF-8 bytes. */
+            /** @description Exact published text, at most 49152 UTF-8 bytes. */
             text: string;
             category?: {
                 /** Format: uuid */
@@ -2367,20 +2334,11 @@ export interface components {
                 slug: string;
                 revision: number;
             } | null;
-            /** @enum {string} */
-            status: "published" | "draft";
-            /**
-             * Format: date-time
-             * @description Draft save time or publication snapshot time.
-             */
-            updatedAt: string;
-            /** @description Optional content revision handle for restoring reading position. */
-            contentVersion?: string;
         };
         ZhiyueAudioTicket: {
             /**
              * Format: uri
-             * @description Private short-lived URL scoped to one device and content version. Never persist or log it.
+             * @description Private, short-lived URL for this publication only. Never persist or log it.
              */
             url: string;
             /** @description Seconds remaining, capped by the binding expiration. */
@@ -2400,11 +2358,6 @@ export interface components {
         };
         ZhiyueSearchRequest: {
             text: string;
-            /**
-             * @default published
-             * @enum {string}
-             */
-            status: "published" | "draft" | "all";
         };
         ZhiyueSearchResult: {
             items: components["schemas"]["ZhiyueArticleItem"][];
@@ -2417,11 +2370,6 @@ export interface components {
                 q: string;
                 /** @description Exact published category UUID, uncategorized, or empty string for no category filter. */
                 category: string;
-                /**
-                 * @default published
-                 * @enum {string}
-                 */
-                status: "published" | "draft" | "all";
             };
             label: string;
             /** @enum {string} */
@@ -2429,21 +2377,6 @@ export interface components {
             noMatch: boolean;
             /** @enum {string} */
             resolvedBy: "openai" | "local" | "fallback";
-        };
-        /** @description Direct category membership within the selected device status and account. Publication aliases are frozen names; drafts use current saved categories. name/slug use the newest visible item. */
-        ZhiyueReadCategory: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            slug: string;
-            names: string[];
-            articleCount: number;
-        };
-        /** @description Category counts and totals use the same selected article status and keyword filter. Category selection does not remove other navigation choices. */
-        ZhiyueReadCategoryPage: {
-            categories: components["schemas"]["ZhiyueReadCategory"][];
-            uncategorizedCount: number;
-            totalArticles: number;
         };
     };
     responses: {
@@ -9456,7 +9389,6 @@ export interface operations {
                 offset?: number;
                 q?: string;
                 category?: string;
-                status?: "published" | "draft" | "all";
             };
             header?: never;
             path?: never;
@@ -9524,9 +9456,7 @@ export interface operations {
     };
     zhiyueReadArticle: {
         parameters: {
-            query?: {
-                status?: "published" | "draft" | "all";
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
@@ -10119,100 +10049,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Request rate or capacity exceeded. */
-            429: {
-                headers: {
-                    /** @description Sent for IP rate limiting. */
-                    "Retry-After"?: 60;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZhiyueRateLimitError"] | components["schemas"]["ZhiyueGrantError"];
-                };
-            };
-            /** @description Dependency unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    zhiyueIssueDraftAudioTicket: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    audioId: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ZhiyueAudioTicket"];
-                };
-            };
-            /** @description Invalid request shape, input or identifier. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Missing, revoked, expired or inactive binding. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"] | components["schemas"]["ZhiyueGrantError"];
-                };
-            };
-            /** @description Feature disabled, wrong listener, or resource unavailable in the authorized scope. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description JSON request exceeds the route payload limit. */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Expected application/json. */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
             };
             /** @description Request rate or capacity exceeded. */
             429: {

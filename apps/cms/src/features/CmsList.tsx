@@ -322,7 +322,7 @@ export function CmsList({
                 onChange={(e) => filter('status', e.target.value)}
               >
                 <option value="">全部状态</option>
-                <option value="draft">未发布</option>
+                <option value="draft">草稿</option>
                 <option value="published">已发布</option>
               </select>
             </label>

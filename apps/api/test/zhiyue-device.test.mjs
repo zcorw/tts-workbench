@@ -157,6 +157,9 @@ test("Pairing confirmation, renewal, isolation and revocation", { skip: !db }, a
   await runtime.pool.query("UPDATE wb_zhiyue_device_requests SET next_poll_at=now() WHERE device_hash=$1", [digest(pending.device_code)]);
   assert.equal((await token(pending.device_code)).response.status, 400);
   ok(await confirm(grantB), 204);
+  // 草稿筛选只属于知声网页；设备接口不能通过 status 扩大读取范围。
+  assert.equal((await device(grantA, route + "/read/articles?status=draft")).response.status, 400);
+  assert.equal((await device(grantA, route + "/read/search", "POST", { text: "全部文章", status: "draft" })).response.status, 400);
   assert.equal(grantA.account.id, a.account.id);
   assert.equal(grantB.account.id, b.account.id);
   assert.deepEqual(ok(await device(grantA, `${route}/read/articles`)).items.map((item) => item.id), [articleA.articleId]);
@@ -284,10 +287,7 @@ test("Migration preserves existing devices and does not impose the confirmation 
   const legacyToken = "L".repeat(43), expiredToken = "E".repeat(43);
   const options = { databaseUrl: db, dir: fileURLToPath(new URL("../migrations/", import.meta.url)), migrationsTable: "wb_migrations", log: () => {} };
   try {
-    const { rows: [migrations] } = await pool.query(
-      "SELECT count(*)::integer AS count FROM wb_migrations WHERE name > '1794268800000-zhiyue-device'",
-    );
-    await runner({ ...options, direction: "down", count: migrations.count });
+    await runner({ ...options, direction: "down", count: 2 });
     await pool.query("INSERT INTO ac_accounts(id,login,display_name,password_hash,status) VALUES($1,$2,'Synthetic legacy','not-a-real-secret','active')", [accountId, `migration-${accountId}`]);
     await pool.query(`INSERT INTO wb_zhiyue_bindings(id,account_id,token_hash,created_at,expires_at)
       VALUES($1,$2,$3,now()-interval '12 hours',now()+interval '12 hours'),

@@ -3,7 +3,6 @@ import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import type { CmsService } from "./cms.js";
 import { createZhiyueSearch, type SearchResolver } from "./zhiyue-search.js";
-import { articleStatus, type ZhiyueContentService } from "./zhiyue-content.js";
 import { ApiError } from "./errors.js";
 import { ZhiyueDeviceService, ZhiyueGrantError } from "./zhiyue-device.js";
 
@@ -50,8 +49,6 @@ function listItem(release: Release) {
     id: release.articleId,
     title: release.title,
     publishedAt: release.createdAt,
-    updatedAt: release.createdAt,
-    status: "published",
     hasAudio: Boolean(release.audio),
     category: release.cms?.category ?? null,
   };
@@ -72,7 +69,6 @@ export function createZhiyueDeviceRouter(
   devices: ZhiyueDeviceService, cms: CmsService, origin: string,
   isCms: (req: Request) => boolean,
   resolveSearch: SearchResolver = createZhiyueSearch(),
-  content?: ZhiyueContentService,
 ) {
   const router = Router();
   const deviceId = (req: Request) => {
@@ -123,15 +119,9 @@ export function createZhiyueDeviceRouter(
     const query = z.strictObject({
       limit: z.string().regex(/^\d{1,2}$/).transform(Number).pipe(z.number().int().min(1).max(20)).optional(),
       offset: z.string().regex(/^\d{1,7}$/).transform(Number).optional(),
-      status: articleStatus.optional(),
       q: z.string().max(120).optional(),
       category: z.union([uuid, z.literal("uncategorized")]).optional(),
     }).parse(req.query);
-    if (query.status && query.status !== "published") {
-      if (!content) throw new ApiError(503, "CONTENT_UNAVAILABLE");
-      res.json(await content.list(binding.accountId, { ...query, limit: query.limit ?? 12, offset: query.offset ?? 0 }));
-      return;
-    }
     const page = await cms.readArticles({ owner: binding.accountId, categoryIds: [] }, {
       limit: query.limit ?? 12, offset: query.offset ?? 0, q: query.q ?? "", category: query.category,
     });
@@ -139,32 +129,24 @@ export function createZhiyueDeviceRouter(
   }));
   router.post("/read/search", limit(12), requireJson, route(async (req, res) => {
     const binding = await identify(req);
-    const { text, status } = z.strictObject({ text: z.string().trim().min(1).max(200), status: articleStatus.default("published") }).parse(req.body);
+    const { text } = z.strictObject({ text: z.string().trim().min(1).max(200) }).parse(req.body);
     const identity = { owner: binding.accountId, categoryIds: [] };
-    if (status !== "published" && !content) throw new ApiError(503, "CONTENT_UNAVAILABLE");
-    const navigation = status === "published" ? await cms.readCategories(identity) : await content!.categories(binding.accountId, status);
+    const navigation = await cms.readCategories(identity);
     const intent = await resolveSearch(text, navigation.categories);
     // 语义请求期间可能已撤销，查询前重新核对同一设备授权。
     await identify(req);
     if (intent.q.length > 120) throw new ApiError(400, "SEARCH_TOO_LONG");
-    const filters = { q: intent.q, category: intent.category, status };
+    const filters = { q: intent.q, category: intent.category };
     const page = intent.noMatch ? { items: [], total: 0, limit: 12, offset: 0 }
-      : status === "published" ? await cms.readArticles(identity, { q: filters.q, category: filters.category || undefined, limit: 12, offset: 0 })
-      : await content!.list(binding.accountId, { ...filters, category: filters.category || undefined, limit: 12, offset: 0 });
+      : await cms.readArticles(identity, { ...filters, category: filters.category || undefined, limit: 12, offset: 0 });
     const label = intent.noMatch ? "未找到分类" : intent.kind === "all" ? "全部文章" : intent.kind === "category"
       ? navigation.categories.find((item) => item.id === intent.category)?.name ?? "未分类"
       : "检索：" + intent.q;
-    res.json({ items: status === "published" ? page.items.map(listItem) : page.items, total: page.total, limit: page.limit, offset: page.offset,
+    res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset,
       filters, label, kind: intent.kind, noMatch: Boolean(intent.noMatch), resolvedBy: intent.resolvedBy });
   }));
   router.get("/read/articles/:id", limit(120), route(async (req, res) => {
     const binding = await identify(req);
-    const { status } = z.strictObject({ status: articleStatus.default("published") }).parse(req.query);
-    if (status !== "published") {
-      if (!content) throw new ApiError(503, "CONTENT_UNAVAILABLE");
-      res.json(await content.article(binding.accountId, uuid.parse(req.params.id), status));
-      return;
-    }
     const release: Release = await cms.readArticle({ owner: binding.accountId, categoryIds: [] }, uuid.parse(req.params.id));
     res.json({ ...listItem(release), releaseId: release.id, text: release.text });
   }));
@@ -176,27 +158,13 @@ export function createZhiyueDeviceRouter(
     const { ticket, expires_in } = await devices.issueMedia(binding.id, releaseId);
     res.json({ url: `${origin}/v1/zhiyue/media/${ticket}`, expires_in });
   }));
-  router.post("/read/drafts/:id/audio-ticket", limit(20), requireJson, route(async (req, res) => {
-    const { audioId } = z.strictObject({ audioId: uuid }).parse(req.body);
-    const binding = await identify(req);
-    if (!content) throw new ApiError(503, "CONTENT_UNAVAILABLE");
-    const articleId = uuid.parse(req.params.id);
-    await content.draftAudio(binding.accountId, articleId, audioId);
-    const { ticket, expires_in } = await devices.issueMedia(binding.id, audioId, articleId);
-    res.json({ url: `${origin}/v1/zhiyue/media/${ticket}`, expires_in });
-  }));
   router.get("/media/:ticket", limit(60), route(async (req, res) => {
-    const { accountId, releaseId, draftArticleId } = await devices.identifyMedia(opaque.parse(req.params.ticket));
+    const { accountId, releaseId } = await devices.identifyMedia(opaque.parse(req.params.ticket));
     const identity = { owner: accountId, categoryIds: [] };
-    if (draftArticleId && !content) throw new ApiError(503, "CONTENT_UNAVAILABLE");
-    const audioLength = async () => draftArticleId ? (await content!.draftAudio(accountId, draftArticleId, releaseId, "length")).length : cms.readAudioLength(identity, releaseId);
-    const audioBytes = async (range?: { start: number; end: number }) => draftArticleId
-      ? (await content!.draftAudio(accountId, draftArticleId, releaseId, range ?? "all")).data
-      : range ? cms.readAudioSlice(identity, releaseId, range) : (await cms.readAudio(identity, releaseId)).data;
     const rangeHeader = req.get("Range");
     res.set({ "Content-Type": "audio/mpeg", "Accept-Ranges": "bytes" });
     if (rangeHeader || req.method === "HEAD") {
-      const length = await audioLength();
+      const length = await cms.readAudioLength(identity, releaseId);
       const range = rangeHeader ? byteRange(rangeHeader, length) : null;
       if (rangeHeader && !range) {
         res.set("Content-Range", `bytes */${length}`).status(416).end();
@@ -209,10 +177,10 @@ export function createZhiyueDeviceRouter(
         res.set("Content-Length", String(range ? range.end - range.start + 1 : length)).end();
         return;
       }
-      if (range) res.send(await audioBytes(range));
+      if (range) res.send(await cms.readAudioSlice(identity, releaseId, range));
       return;
     }
-    res.send(await audioBytes());
+    res.send((await cms.readAudio(identity, releaseId)).data);
   }));
   return router;
 }
