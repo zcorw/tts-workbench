@@ -157,6 +157,9 @@ test("Pairing confirmation, renewal, isolation and revocation", { skip: !db }, a
   await runtime.pool.query("UPDATE wb_zhiyue_device_requests SET next_poll_at=now() WHERE device_hash=$1", [digest(pending.device_code)]);
   assert.equal((await token(pending.device_code)).response.status, 400);
   ok(await confirm(grantB), 204);
+  // 草稿筛选只属于知声网页；设备接口不能通过 status 扩大读取范围。
+  assert.equal((await device(grantA, route + "/read/articles?status=draft")).response.status, 400);
+  assert.equal((await device(grantA, route + "/read/search", "POST", { text: "全部文章", status: "draft" })).response.status, 400);
   assert.equal(grantA.account.id, a.account.id);
   assert.equal(grantB.account.id, b.account.id);
   assert.deepEqual(ok(await device(grantA, `${route}/read/articles`)).items.map((item) => item.id), [articleA.articleId]);

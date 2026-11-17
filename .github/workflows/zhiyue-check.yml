@@ -91,3 +91,4 @@ jobs:
           done
           curl --fail --silent "$BASE_URL" > /dev/null
           node apps/cms/qa/zhiyue-connection-ui.cjs
+          node apps/cms/qa/article-status-ui.cjs
