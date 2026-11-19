@@ -52,6 +52,7 @@ import { ZhiyueDeviceService } from "./zhiyue-device.js";
 import { createZhiyueSearch } from "./zhiyue-search.js";
 import { createZhiyueAccountRouter, createZhiyueDeviceRouter } from "./zhiyue-http.js";
 import { McpBatchService } from "./mcp-batch.js";
+import { McpWriteService } from "./mcp-write.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { createMcpRouter, createMcpAccountRouter } from "./mcp-http.js";
 import { GenerationAdmission } from "./generation-admission.js";
@@ -72,6 +73,7 @@ export interface State {
   articles: ArticleService;
   cms: CmsService;
   mcpBatch: McpBatchService;
+  mcpWrite: McpWriteService;
   mcpOAuth: McpOAuthService;
   audioBatches: AudioBatchService;
   generationAdmission: GenerationAdmission;
@@ -499,6 +501,7 @@ export async function createApplication(
     articles,
     cms,
     mcpBatch: new McpBatchService(pool, articles, cms),
+    mcpWrite: new McpWriteService(articles, cms),
     mcpOAuth: new McpOAuthService(pool, articles, config),
     audioBatches,
     generationAdmission,
@@ -549,6 +552,7 @@ export async function createApplication(
       config,
       state.mcpOAuth,
       state.mcpBatch,
+      state.mcpWrite,
       cms,
       (req) => !config.CMS_DIST || sites.isCms(req),
     ),

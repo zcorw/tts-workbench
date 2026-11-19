@@ -287,7 +287,13 @@ test("Migration preserves existing devices and does not impose the confirmation 
   const legacyToken = "L".repeat(43), expiredToken = "E".repeat(43);
   const options = { databaseUrl: db, dir: fileURLToPath(new URL("../migrations/", import.meta.url)), migrationsTable: "wb_migrations", log: () => {} };
   try {
-    await runner({ ...options, direction: "down", count: 2 });
+    // Recreate the schema immediately before renewal to test old bindings.
+    // A fixed rollback count breaks when unrelated migrations are added.
+    const applied = (await pool.query("SELECT name FROM wb_migrations ORDER BY id DESC"))
+      .rows.map((row) => String(row.name));
+    const renewalIndex = applied.findIndex((name) => name.includes("1794528000000-zhiyue-renewal"));
+    assert.ok(renewalIndex >= 0, "The renewal migration must exist before rollback");
+    await runner({ ...options, direction: "down", count: renewalIndex + 1 });
     await pool.query("INSERT INTO ac_accounts(id,login,display_name,password_hash,status) VALUES($1,$2,'Synthetic legacy','not-a-real-secret','active')", [accountId, `migration-${accountId}`]);
     await pool.query(`INSERT INTO wb_zhiyue_bindings(id,account_id,token_hash,created_at,expires_at)
       VALUES($1,$2,$3,now()-interval '12 hours',now()+interval '12 hours'),
