@@ -411,6 +411,44 @@ export class CmsService {
       return this.taxonomyItem(c, owner, kind, id);
     });
   }
+  // Category names are unique per parent for MCP creation. The generated slug
+  // is independent of the name, so non-Latin names require no manual slug.
+  async createMcpCategoryInTransaction(
+    c: PoolClient,
+    owner: string,
+    input: unknown,
+  ) {
+    const dto = categorySchema.omit({ slug: true }).parse(input);
+    const existing = (
+      await c.query(
+        `SELECT id FROM wb_cms_taxonomy
+         WHERE account_id=$1 AND kind='category' AND lower(name)=lower($2)
+         AND parent_id IS NOT DISTINCT FROM $3::uuid
+         ORDER BY id LIMIT 1`,
+        [owner, dto.name, dto.parentId],
+      )
+    ).rows[0];
+    if (existing)
+      return {
+        ...(await this.taxonomyItem(c, owner, "category", existing.id)),
+        created: false,
+      };
+    const id = randomUUID();
+    await this.categoryParent(c, owner, id, dto.parentId);
+    await c.query(
+      "INSERT INTO wb_cms_taxonomy(id,account_id,kind,name,slug,parent_id,sort_order) VALUES($1,$2,'category',$3,$4,$5,$6)",
+      [
+        id,
+        owner,
+        dto.name,
+        `category-${id.replaceAll("-", "")}`,
+        dto.parentId,
+        dto.sortOrder,
+      ],
+    );
+    return { ...(await this.taxonomyItem(c, owner, "category", id)), created: true };
+  }
+
   async updateTaxonomy(
     owner: string,
     kind: "category" | "tag",
@@ -641,6 +679,51 @@ export class CmsService {
       await this.saveMeta(c, owner, id, dto.cms, dto.cms.expectedRevision);
       return this.detail(c, owner, id);
     });
+  }
+
+  // Called under the same account transaction as an MCP write receipt. Missing
+  // fields preserve the current draft; slugs are never remotely editable.
+  async updateMcpArticleInTransaction(
+    c: PoolClient,
+    owner: string,
+    input: {
+      articleId: string;
+      expectedRevision: number;
+      expectedCmsRevision: number;
+      title?: string;
+      text?: string;
+      summary?: string;
+      categoryId?: string | null;
+      tagIds?: string[];
+    },
+  ) {
+    const id = uuid.parse(input.articleId);
+    const current = await this.detail(c, owner, id);
+    if (current.revision !== input.expectedRevision)
+      throw new ApiError(409, "REVISION_CONFLICT");
+    if (current.cms.revision !== input.expectedCmsRevision)
+      throw new ApiError(409, "CMS_REVISION_CONFLICT");
+    await this.articles.updateInTransaction(c, owner, id, {
+      title: input.title ?? current.title,
+      text: input.text ?? current.text,
+      expectedRevision: input.expectedRevision,
+    });
+    await this.saveMeta(
+      c,
+      owner,
+      id,
+      autoMetaInput.parse({
+        slug: current.cms.slug || undefined,
+        summary: input.summary ?? current.cms.summary,
+        categoryId:
+          input.categoryId === undefined
+            ? current.cms.categoryId
+            : input.categoryId,
+        tagIds: input.tagIds ?? current.cms.tagIds,
+      }),
+      input.expectedCmsRevision,
+    );
+    return this.detail(c, owner, id);
   }
 
   async moveCategory(owner: string, input: unknown) {
