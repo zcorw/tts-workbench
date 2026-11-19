@@ -1,6 +1,6 @@
 # 知声 MCP 第一版
 
-知声是 `apps/cms` 独立 CMS 的产品名称；原语音工作台保留原名。两站共享账户、数据库和文章服务。本增量为 ChatGPT 会话提供私有草稿创建，不自动发布或调用收费 TTS，不增加数据库或常驻容器。
+知声是 `apps/cms` 独立 CMS 的产品名称；原语音工作台保留原名。两站共享账户、数据库和文章服务。本增量为 ChatGPT 会话提供私有草稿创建，并扩展为授权创建分类、编辑已有工作稿。不自动发布或调用收费 TTS，不增加常驻容器；MCP 写入收据使用一张新的数据库表。
 
 ## 工具与连接
 
@@ -9,11 +9,13 @@
 | 工具 | 权限 | 用途 |
 | --- | --- | --- |
 | `list_categories` | `cms:read` | 本人栏目树和标签 |
-| `get_article` | `cms:read` | 本人一篇当前工作草稿及元数据 |
+| `get_article` | `cms:read` | 本人一篇当前工作草稿及元数据，包含文章与 CMS 双 revision |
+| `create_category` | `cms:categories:create` | 创建本人一级/子分类，按名称去重并返回分类 ID |
+| `update_article` | `cms:articles:update` | 修改工作稿的文本、分类与标签，双版本并发校验 |
 | `create_article_drafts` | `cms:drafts:create` | 每批 1–20 篇草稿、按项收据和编辑链接 |
 | `get_draft_batch` | `cms:drafts:create` | 查询已登记批次的结果，不返回正文 |
 
-`cms:read` 可读取本人全部工作草稿和分类，第一版没有栏目级授权。授权页逐项说明范围，由本人明确允许；只需创建的客户端可仅申请创建权限。工具不能更新旧文、发布、删除或生成音频；账户隔离和作用域在服务端执行，描述和注解不提供权限。
+`cms:read` 可读取本人全部工作草稿和分类，第一版没有栏目级授权。授权页逐项说明范围，由本人明确允许；只需创建的客户端可仅申请创建权限。写入分类或修改文章需要分别授权 `cms:categories:create` 或 `cms:articles:update`；已有只读及草稿创建授权不会自动拥有新权限，需重新授权新范围。MCP 工具不能发布、删除或生成音频；账户隔离和作用域在服务端执行，描述和注解不提供权限。
 
 双端口模式仅 CMS 入口提供机器端点及 OAuth 发现，工作台端口返回 404。Cookie、旧 CMS 读取令牌和管理员密钥均不能授权 MCP；MCP 令牌也不能授权现有 REST API。浏览器同意和撤销继续使用 Session/Origin/CSRF。存在 Origin 时只接受配置 CMS origin；服务器间请求可不带 Origin，不开放通配 CORS。
 
@@ -47,6 +49,45 @@ ID 限 1–100 位 ASCII 字母、数字及 `._:-`，首位为字母或数字。
 整包 JSON 最多 1 MiB，工具输入另限 1,040,000 UTF-8 字节，为 JSON-RPC 外壳预留空间。单篇标题最多 120 Unicode 码点，正文最多 10000 码点且 49152 字节；不自动切分。摘要最多 1000 UTF-16 单元，标签最多 50 个且不能重复。每批串行；每进程同时最多两批、同账户一批，跨进程由现有账户行锁保证原子写入。超限 `MCP_BUSY` 可重试；每 IP 每分钟最多 120 个机器端点请求，此限制不是集群全局限流。
 
 取消停止后续项，已提交项保留。没有后台任务，重启后需原请求继续；批次查询中的 pending 不是承诺任务正在后台运行。
+
+## 分类与文章写入（第二版）
+
+`create_category` 和 `update_article` 均执行本人账户行锁事务。每个写入操作需要 `requestId`（与已有批次 ID 相同的 ASCII 格式）；它在本人所有新增写入操作中唯一且不可重复用于不同内容。输入经验证后仅存 SHA-256 摘要、操作类型和最小结果，不保存正文、标题或分类名。成功写入与收据在同一 PostgreSQL 事务中提交；响应丢失后用**完全相同的参数和 requestId**重新调用，可得到第一次的结果；换参数需要新 requestId。新旧批量创建的收据空间独立。
+
+### 创建分类
+
+```json
+{
+  "requestId": "new-category-20261119-1",
+  "name": "日本語面接",
+  "parentId": null,
+  "sortOrder": 0
+}
+```
+
+必填 `requestId`、`name`；`parentId` 和 `sortOrder` 可省略（一级分类、排序 0）。按本人账户、父分类和不区分大小写的名称识别已有分类；已存在时返回 `status: "existing"`，否则返回 `status: "created"`，均带 `categoryId`、`slug`、`revision`。分类 slug 由服务端自动生成，无需输入。parentId 必须是本人分类，不允许使用他人分类或标签。
+
+### 修改文章
+
+先调用 `get_article` 读取 `revision` 和 `cms.revision`，将它们分别填写为 `expectedRevision`、`expectedCmsRevision`：
+
+```json
+{
+  "requestId": "edit-article-20261119-1",
+  "articleId": "11111111-1111-4111-8111-111111111111",
+  "expectedRevision": 1,
+  "expectedCmsRevision": 1,
+  "text": "更新后的正文",
+  "categoryId": null,
+  "tagIds": []
+}
+```
+
+除了以上标识和两个版本号，至少传一个可变字段。可变字段是 `title`、`text`、`summary`、`categoryId`、`tagIds`；省略字段表示不修改，`categoryId:null` 表示取消分类，`tagIds:[]` 表示清空标签。不允许通过 MCP 改 slug。传入的分类和标签只能属于授权账户；标签暂时必须先在网页中创建。文章 revision 或 CMS revision 不匹配返回 `REVISION_CONFLICT` 或 `CMS_REVISION_CONFLICT`，不要换 requestId 盲目重试；需重新读取文章、确认变更内容后提交新请求。
+
+正文更新沿用现有 contentRevision 机制，既有音频会标记过期但不会自动重建。分类与标签仅更新工作稿，不会覆盖已发布快照。更新收据仅含 articleId、revision、cmsRevision、contentRevision 和编辑链接。对于已经提交的 requestId，重试只返回旧收据，即便后续发生手工编辑或删除也不会再次修改。
+
+生产升级需要数据库迁移 `1795046400000-cms-mcp-write.cjs`，已存在的 MCP OAuth 连接不会自动获得两个新的写权限。**本提交不会启用 MCP 或操作生产数据库。**
 
 ## OAuth 与实际启用
 
