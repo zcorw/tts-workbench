@@ -1059,11 +1059,14 @@ export class CmsService {
     identity: ReadIdentity,
     query: { q: string; tag?: string; category?: string },
     includeCategory = true,
+    titleOnly = false,
   ) {
     const values: unknown[] = [];
     let where = this.readWhere(identity, values);
-    values.push(query.q);
-    where += ` AND strpos(lower(concat_ws(' ',r.snapshot->>'title',r.snapshot->>'text',r.snapshot->'cms'->>'summary')),lower($${values.length}))>0`;
+    values.push(titleOnly ? query.q.normalize("NFKC").toLowerCase() : query.q);
+    const queryParam = values.length;
+    const title = "lower(normalize(r.snapshot->>'title', NFKC))";
+    where += titleOnly ? ` AND strpos(${title},$${queryParam})>0` : ` AND strpos(lower(concat_ws(' ',r.snapshot->>'title',r.snapshot->>'text',r.snapshot->'cms'->>'summary')),lower($${values.length}))>0`;
     if (query.tag) {
       values.push(query.tag);
       where += ` AND EXISTS(SELECT 1 FROM jsonb_array_elements(r.snapshot->'cms'->'tags') t WHERE t->>'id'=$${values.length})`;
@@ -1074,14 +1077,15 @@ export class CmsService {
       values.push(query.category);
       where += ` AND r.snapshot->'cms'->'category'->>'id'=$${values.length}`;
     }
-    return { where, values };
+    return { where, values, queryParam };
   }
   private async readNavigation(
     c: Db,
     identity: ReadIdentity,
     query: { q: string; tag?: string },
+    titleOnly = false,
   ) {
-    const { where, values } = this.readFilter(identity, query, false);
+    const { where, values } = this.readFilter(identity, query, false, titleOnly);
     const from = `FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id WHERE ${where}`;
     const totals = (
       await c.query(
@@ -1125,22 +1129,23 @@ export class CmsService {
   async readCategories(identity: ReadIdentity) {
     return this.read((c) => this.readNavigation(c, identity, { q: "" }));
   }
-  async readArticles(identity: ReadIdentity, query: unknown) {
+  async readArticles(identity: ReadIdentity, query: unknown, { titleOnly = false } = {}) {
     const q = readListSchema.parse(query);
     return this.read(async (c) => {
-      const { where, values } = this.readFilter(identity, q);
+      const { where, values, queryParam } = this.readFilter(identity, q, true, titleOnly);
       const from = `FROM wb_cms_releases r JOIN wb_cms_articles m ON m.article_id=r.article_id WHERE ${where}`;
       const total = Number(
         (await c.query(`SELECT count(*) ${from}`, values)).rows[0].count,
       );
       values.push(q.limit, q.offset);
+      const order = titleOnly && q.q ? `CASE WHEN lower(normalize(r.snapshot->>'title', NFKC))=$${queryParam} THEN 0 ELSE 1 END,` : "";
       const items = (
         await c.query(
-          `SELECT r.snapshot ${from} ORDER BY r.created_at DESC,r.id DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
+          `SELECT r.snapshot ${from} ORDER BY ${order}r.created_at DESC,r.id DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
           values,
         )
       ).rows.map((r) => r.snapshot);
-      const navigation = await this.readNavigation(c, identity, q);
+      const navigation = await this.readNavigation(c, identity, q, titleOnly);
       return { items, total, limit: q.limit, offset: q.offset, navigation };
     });
   }

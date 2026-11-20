@@ -7,7 +7,7 @@
 - GET /v1/zhiyue/read/articles 保留 limit/offset，新增 q（最多120字符）和 category（精确发布分类 UUID 或 uncategorized）。列表及详情新增冻结 category，列表返回 navigation。复用 CmsService 当前账号发布范围及直接归属语义，不读草稿分类，不扩大到子分类。
 - POST /v1/zhiyue/read/search 接收 JSON { "text": "查看科技分类" }，text 为去除两端空白后1至200字符，正文限制1024字节。要求当前有效设备 Bearer；每 IP 每分钟12次。
 - 返回首个分页（limit12、offset0）及 kind、filters、label、noMatch、resolvedBy。filters 用于后续普通 GET 分页；不重复调用语义模型。唯一文章是否跳转由知阅客户端负责。
-- 语义等待结束后再次验证设备授权。未知或重名分类返回空结果，不用空 category 扩大到全部文章。
+- 语义等待结束后再次验证设备授权。分类名称及历史名称支持 NFKC/大小写/标点归一化后的部分匹配；多个命中返回候选，不用空 category 扩大到全部文章。
 
 ## OpenAI
 
@@ -20,3 +20,13 @@
 ## 验证与后续
 
 2026-11-15 主线整合后 TypeScript 构建、工作台/CMS 类型检查、OpenAPI 1.8.0 的82个接口及生成类型/指纹校验通过。一次性 PostgreSQL 中设备确认/续期、迁移、CI固定客户端真实HTTP联调和语音检索专项合计13项通过、0跳过。全部为虚构测试数据，OpenAI 使用模拟响应。真机、真实 OpenAI、PR合并与部署仍另行验收。知阅操作和验证记录位于 D:/Workspace/github/zhiyue/docs/stage-08-voice-search.md。
+
+
+## 2026-11-20 部分标题与分类名称检索
+
+本轮已获用户授权修改知声检索接口和相关测试，不部署、不签发真实凭据、不调用付费模型。知阅设备接口的 `q` 仅匹配发布标题，使用 NFKC 和大小写归一化后的子串；精确标题排在部分命中前，同组按发布时间和发布 id 倒序，GET 后续分页沿用相同规则。CMS 普通阅读库原有全文检索保持原行为。
+
+分类仅在当前账号可读发布快照的名称和历史名称中匹配，按 id 去重；精确名称排在部分候选前。唯一分类仍返回精确 id 筛选的文章页。多个分类时，`kind=category`、`items=[]`、`total=0`、空 filters、`noMatch=false`，新增 `categoryCandidates`（至少两项，包含 id/name/articleCount）；客户端必须让用户选择，再按精确 id 加载文章。无匹配仍返回 `noMatch=true`，客户端可显示完整可读分类供选择；文章无匹配仍为空。`categoryQuery` 在所有 category 响应中保留提取的分类名（最多120字符），供客户端恢复或重查，不能用候选空 filters 加载全部文章。未分类仅在确有可读发布文章时参与匹配。
+
+授权前置及语义等待后复核、账号隔离、只读与发布范围保持。候选不包含其他账号或草稿分类；同音、错字和语义近似不属于本轮范围。源码、本地隔离HTTP/PG、Studio、Rokid真机和部署须分别记录，本地通过不代表已发布。
+本轮本地验证：API TypeScript 构建通过；在一次性 localhost PostgreSQL 17 中执行 `node --test --test-concurrency=1 apps/api/test/zhiyue-search.test.mjs apps/api/test/zhiyue-fuzzy.test.mjs apps/api/test/zhiyue-device.test.mjs apps/api/test/zhiyue-device-identity.test.mjs`，18/18 通过、0跳过。包含真实 HTTP/PG 标题部分匹配与精确排序跨页、分类候选/单命中/无匹配、全半角与大小写、账号隔离、草稿排除、撤销，以及 CMS 普通阅读库全文检索回归。语义模型使用模拟响应，没有真实 OpenAI 或真机结论。OpenAPI 1.9.0 的82个接口验证及前端生成类型通过；用户后续已明确授权本轮提交并推送知声与知阅代码、同步知序，并将知阅更新到 AIUI Studio；知声本轮仅交付源码，不据此认定后端已部署或眼镜已安装。

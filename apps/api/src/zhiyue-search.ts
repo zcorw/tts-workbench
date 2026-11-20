@@ -1,26 +1,37 @@
 import { z } from "zod";
 
-export type SearchCategory = { id: string; name: string; names?: string[] };
-export type SearchIntent = { kind: "article" | "category" | "all"; q: string; category: string; noMatch?: boolean };
+export type SearchCategory = { id: string; name: string; names?: string[]; articleCount?: number };
+export type SearchIntent = { kind: "article" | "category" | "all"; q: string; category: string; noMatch?: boolean; categoryQuery?: string; categoryCandidates?: SearchCategory[] };
 export type SearchResolver = (text: string, categories: SearchCategory[]) => Promise<SearchIntent & { resolvedBy: string }>;
 const normalized = (value: string) => value.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
-function categoryId(name: string, categories: SearchCategory[]) {
-  if (normalized(name) === "未分类") return "uncategorized";
-  const matches = categories.filter((item) => [item.name, ...(item.names ?? [])].some((alias) => normalized(alias) === normalized(name)));
-  return matches.length === 1 ? matches[0].id : undefined;
+function categoryIntent(name: string, categories: SearchCategory[]): SearchIntent {
+  const query = normalized(name);
+  const choices = [...new Map(categories.map((item) => [item.id, item])).values()];
+  const matches = query ? choices.filter((item) => [item.name, ...(item.names ?? [])]
+    .some((alias) => normalized(alias).includes(query))).sort((a, b) => {
+      const exact = (item: SearchCategory) => [item.name, ...(item.names ?? [])].some((alias) => normalized(alias) === query);
+      return Number(exact(b)) - Number(exact(a));
+    }) : [];
+  if (matches.length === 1) return { kind: "category", q: "", category: matches[0].id, categoryQuery: name };
+  return { kind: "category", q: "", category: "", categoryQuery: name, noMatch: matches.length === 0,
+    ...(matches.length > 1 ? { categoryCandidates: matches } : {}) };
 }
 export function basicSearch(text: string, categories: SearchCategory[]): SearchIntent {
   const raw = text.trim().replace(/[。！？!?]+$/u, "");
-  const value = normalized(raw).replace(/^(?:请)?(?:帮我|给我)?(?:查找|搜索|检索|查看|打开|找)(?:一下)?/u, "");
-  if (/^(?:返回|显示)?全部文章$/.test(value)) return { kind: "all", q: "", category: "" };
-  const choices = [...categories, { id: "uncategorized", name: "未分类" }];
-  const matches = choices.filter((category) => [category.name, ...(category.names ?? [])].some((name) =>
-    [name, name + "分类", name + "类", name + "的文章", "分类" + name].some((candidate) => normalized(candidate) === value)));
-  if (matches.length === 1) return { kind: "category", q: "", category: matches[0].id };
-  if (matches.length > 1) return { kind: "category", q: "", category: "", noMatch: true };
-  if (/分类$/.test(value) || /^分类/.test(value)) return { kind: "category", q: "", category: "", noMatch: true };
-  return { kind: "article", q: raw.replace(/^(?:请)?(?:帮我|给我)?(?:查找|搜索|检索|查看|打开|阅读|找)(?:一下)?(?:文章)?\s*/u, "")
-    .replace(/^文章\s*/u, "").replace(/[《》「」]/gu, "").trim() || raw, category: "" };
+  const value = raw.replace(/^(?:请)?(?:帮我|给我)?(?:查找|搜索|检索|查看|打开|阅读|找)(?:一下)?/u, "").trim();
+  if (/^(?:返回|显示)?全部文章$/.test(normalized(value))) return { kind: "all", q: "", category: "" };
+  const articleCommand = /^文章/u.test(value) || /[《「]/u.test(value);
+  if (!articleCommand) {
+    const bareName = categories.some((item) => [item.name, ...(item.names ?? [])]
+      .some((name) => normalized(name) === normalized(raw)));
+    if (bareName) return categoryIntent(raw, categories);
+    const completeName = categories.some((item) => [item.name, ...(item.names ?? [])]
+      .some((name) => normalized(name) === normalized(value)));
+    const categoryQuery = completeName ? value : value.replace(/^分类\s*/u, "").replace(/(?:分类|类|的文章)$/u, "").trim();
+    const intent = categoryIntent(categoryQuery, categories);
+    if (/(?:分类|类|的文章)$/u.test(value) || /^分类/u.test(value) || !intent.noMatch) return intent;
+  }
+  return { kind: "article", q: value.replace(/^文章\s*/u, "").replace(/[《》「」]/gu, "").trim() || raw, category: "" };
 }
 const intentSchema = z.strictObject({
   kind: z.enum(["article", "category", "all"]), q: z.string().max(120), categoryName: z.string().max(100),
@@ -60,8 +71,12 @@ export function createZhiyueSearch({ apiKey, model, request = fetch, timeoutMs =
           if (intent.kind === "category" && (!intent.categoryName || intent.q)) throw new Error("invalid_category");
           if (intent.kind === "article" && !intent.q) throw new Error("empty_query");
           if (intent.kind === "all" && (local.kind !== "all" || intent.categoryName || intent.q)) throw new Error("invalid_all");
-          const category = intent.categoryName ? categoryId(intent.categoryName, categories) : "";
-          return { kind: intent.kind, q: intent.q, category: category ?? "", noMatch: category === undefined, resolvedBy: "openai" };
+          if (intent.categoryName) {
+            const mapped = categoryIntent(intent.categoryName, categories);
+            if (intent.kind === "category") return { ...mapped, resolvedBy: "openai" };
+            return { kind: "article" as const, q: intent.q, category: mapped.category, noMatch: !mapped.category, resolvedBy: "openai" };
+          }
+          return { kind: intent.kind, q: intent.q, category: "", resolvedBy: "openai" };
         })(),
         new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Error("semantic_timeout")); control.abort(); }, timeoutMs); }),
       ]);

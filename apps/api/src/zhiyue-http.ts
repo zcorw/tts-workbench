@@ -124,7 +124,7 @@ export function createZhiyueDeviceRouter(
     }).parse(req.query);
     const page = await cms.readArticles({ owner: binding.accountId, categoryIds: [] }, {
       limit: query.limit ?? 12, offset: query.offset ?? 0, q: query.q ?? "", category: query.category,
-    });
+    }, { titleOnly: true });
     res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset, navigation: page.navigation });
   }));
   router.post("/read/search", limit(12), requireJson, route(async (req, res) => {
@@ -132,18 +132,23 @@ export function createZhiyueDeviceRouter(
     const { text } = z.strictObject({ text: z.string().trim().min(1).max(200) }).parse(req.body);
     const identity = { owner: binding.accountId, categoryIds: [] };
     const navigation = await cms.readCategories(identity);
-    const intent = await resolveSearch(text, navigation.categories);
+    const choices = [...navigation.categories, ...(navigation.uncategorizedCount > 0
+      ? [{ id: "uncategorized", name: "未分类", articleCount: navigation.uncategorizedCount }] : [])];
+    const intent = await resolveSearch(text, choices);
     // 语义请求期间可能已撤销，查询前重新核对同一设备授权。
     await identify(req);
-    if (intent.q.length > 120) throw new ApiError(400, "SEARCH_TOO_LONG");
+    if (intent.q.length > 120 || (intent.categoryQuery?.length ?? 0) > 120) throw new ApiError(400, "SEARCH_TOO_LONG");
     const filters = { q: intent.q, category: intent.category };
-    const page = intent.noMatch ? { items: [], total: 0, limit: 12, offset: 0 }
-      : await cms.readArticles(identity, { ...filters, category: filters.category || undefined, limit: 12, offset: 0 });
-    const label = intent.noMatch ? "未找到分类" : intent.kind === "all" ? "全部文章" : intent.kind === "category"
+    const page = intent.noMatch || intent.categoryCandidates ? { items: [], total: 0, limit: 12, offset: 0 }
+      : await cms.readArticles(identity, { ...filters, category: filters.category || undefined, limit: 12, offset: 0 }, { titleOnly: true });
+    const label = intent.categoryCandidates ? "分类：" + intent.categoryQuery : intent.noMatch ? "未找到分类" : intent.kind === "all" ? "全部文章" : intent.kind === "category"
       ? navigation.categories.find((item) => item.id === intent.category)?.name ?? "未分类"
       : "检索：" + intent.q;
     res.json({ items: page.items.map(listItem), total: page.total, limit: page.limit, offset: page.offset,
-      filters, label, kind: intent.kind, noMatch: Boolean(intent.noMatch), resolvedBy: intent.resolvedBy });
+      filters, label, kind: intent.kind, noMatch: Boolean(intent.noMatch), resolvedBy: intent.resolvedBy,
+      ...(intent.kind === "category" ? { categoryQuery: intent.categoryQuery ?? "" } : {}),
+      ...(intent.categoryCandidates ? { categoryCandidates: intent.categoryCandidates.map(({ id, name, articleCount }) =>
+        ({ id, name, articleCount })) } : {}) });
   }));
   router.get("/read/articles/:id", limit(120), route(async (req, res) => {
     const binding = await identify(req);

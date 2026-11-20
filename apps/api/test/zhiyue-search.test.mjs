@@ -15,12 +15,12 @@ const response = (intent) => Response.json({ status: "completed", output: [{ typ
 ] }] });
 
 test("基础解析覆盖分类历史名称、未分类、文章名及全部文章", () => {
-  assert.deepEqual(basicSearch("查看科学技术分类", categories), { kind: "category", q: "", category: category.id });
-  assert.equal(basicSearch("查看未分类", categories).category, "uncategorized");
+  assert.deepEqual(basicSearch("查看科学技术分类", categories), { kind: "category", q: "", category: category.id, categoryQuery: "科学技术" });
+  assert.equal(basicSearch("查看未分类", [...categories, { id: "uncategorized", name: "未分类" }]).category, "uncategorized");
   assert.equal(basicSearch("找文章《第一班电车之前》", categories).q, "第一班电车之前");
   assert.equal(basicSearch("全部文章", categories).kind, "all");
   assert.equal(basicSearch("查看不存在分类", categories).noMatch, true);
-  assert.equal(basicSearch("科技分类", [...categories, { ...category, id: other.id }]).noMatch, true);
+  assert.equal(basicSearch("科技分类", [...categories, { ...category, id: other.id }]).categoryCandidates.length, 2);
 });
 
 test("OpenAI 只收到识别文本，分类及凭据留在本地，输出映射发布分类历史名称", async () => {
@@ -150,4 +150,52 @@ test("语义处理中撤销授权后不返回文章", async (t) => {
   });
   assert.equal((await f.call("/read/search", { text: "找星空" })).status, 401);
   assert.equal(f.reads.length, 0);
+});
+
+
+test("部分分类候选精确优先、按id去重且不自动选中，文章口令不误判分类", () => {
+  const partial = { id: "33333333-3333-4333-8333-333333333333", name: "科技资讯" };
+  const result = basicSearch("查看科技分类", [partial, category, category]);
+  assert.equal(result.category, "");
+  assert.equal(result.noMatch, false);
+  assert.equal(result.categoryQuery, "科技");
+  assert.deepEqual(result.categoryCandidates.map((item) => item.id), [category.id, partial.id]);
+  assert.equal(basicSearch("查看科分类", categories).category, category.id);
+  assert.equal(basicSearch("查找文章科技", categories).kind, "article");
+  assert.equal(basicSearch("找《科技》", categories).q, "科技");
+  assert.equal(basicSearch("查看未知分类", categories).noMatch, true);
+});
+
+test("OpenAI分类名称部分匹配沿用本地候选与排序，文章加分类保留标题关键词", async () => {
+  const choices = [{ id: "33333333-3333-4333-8333-333333333333", name: "科技资讯" }, category];
+  const resolver = createZhiyueSearch({ apiKey: "fixture", model: "fixture", request: async () =>
+    response({ kind: "category", q: "", categoryName: "科技" }) });
+  const result = await resolver("查看科技分类", choices);
+  assert.deepEqual(result.categoryCandidates.map((item) => item.id), [category.id, choices[0].id]);
+  assert.equal(result.noMatch, false);
+  const articleResolver = createZhiyueSearch({ apiKey: "fixture", model: "fixture", request: async () =>
+    response({ kind: "article", q: "星空", categoryName: "科技" }) });
+  assert.deepEqual(await articleResolver("科技里的星空文章", categories),
+    { kind: "article", q: "星空", category: category.id, noMatch: false, resolvedBy: "openai" });
+});
+
+
+test("真实分类名称的分类后缀优先保留，明确文章口令不误匹配分类", () => {
+  const choices = [{ id: category.id, name: "垃圾" }, { id: other.id, name: "垃圾分类" }];
+  const result = basicSearch("查看垃圾分类", choices);
+  assert.equal(result.categoryQuery, "垃圾分类");
+  assert.equal(result.category, other.id);
+  assert.equal(basicSearch("查看垃圾分类分类", choices).category, other.id);
+  const article = basicSearch("查找文章《垃圾分类》", choices);
+  assert.equal(article.kind, "article");
+  assert.equal(article.q, "垃圾分类");
+});
+
+
+test("只说出的分类名称即使等同阅读动词，也先匹配真实分类", () => {
+  const choices = [{ id: category.id, name: "阅读" }, { id: other.id, name: "阅读笔记" }];
+  const result = basicSearch("阅读", choices);
+  assert.equal(result.categoryQuery, "阅读");
+  assert.deepEqual(result.categoryCandidates.map((item) => item.id), [category.id, other.id]);
+  assert.equal(basicSearch("阅读文章《阅读》", choices).kind, "article");
 });

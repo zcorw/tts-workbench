@@ -1186,7 +1186,7 @@ export interface paths {
         };
         /**
          * List the current published articles of the binding owner
-         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Paged newest-first summaries. Only the account associated with the device binding is read. Article bodies, drafts and audio bytes are omitted from the list.
+         * @description Requires CMS_ZHIYUE_ENABLED=true (default false), the CMS listener and a configured HTTPS CMS origin. Paged newest-first summaries. Only the account associated with the device binding is read. Article bodies, drafts and audio bytes are omitted from the list. For Zhiyue only, q matches published titles by case-insensitive NFKC substring, with exact titles ranked first and stable publication/id tie breaks. Body and summary are not searched.
          */
         get: operations["zhiyueReadArticles"];
         put?: never;
@@ -1328,7 +1328,7 @@ export interface paths {
         put?: never;
         /**
          * Search owned publications using recognized speech text
-         * @description Dedicated device Bearer required. Only recognized text is sent to optional OpenAI Responses; no audio, category catalog, article body, account or device credential is sent. Category names map locally to current authorized frozen publication categories and aliases. Rechecks authorization after semantic resolution. Six-second semantic deadline falls back to local parsing. Unknown or ambiguous categories return noMatch and zero results. First page has limit12; reuse filters for subsequent GET pages without another model call. Requires ZHIYUE_OPENAI_API_KEY and ZHIYUE_OPENAI_MODEL to enable semantics. IP limit12/minute. Feature remains gated by CMS_ZHIYUE_ENABLED.
+         * @description Dedicated device Bearer required. Only recognized text is sent to optional OpenAI Responses; no audio, category catalog, article body, account or device credential is sent. Category names map locally to current authorized frozen publication categories and aliases. Rechecks authorization after semantic resolution. Six-second semantic deadline falls back to local parsing. Category names and historical aliases support normalized substrings. Multiple categories return categoryCandidates with exact matches first, empty article items and filters, noMatch=false; the client must choose an exact category ID. Unknown categories return noMatch and zero results; the client can show all authorized categories. Category results include categoryQuery. Article q matches title substrings only, exact titles first. First page has limit12; reuse filters for subsequent GET pages without another model call. Requires ZHIYUE_OPENAI_API_KEY and ZHIYUE_OPENAI_MODEL to enable semantics. IP limit12/minute. Feature remains gated by CMS_ZHIYUE_ENABLED.
          */
         post: operations["zhiyueSearchArticles"];
         delete?: never;
@@ -2377,6 +2377,15 @@ export interface components {
             noMatch: boolean;
             /** @enum {string} */
             resolvedBy: "openai" | "local" | "fallback";
+            /** @description Extracted category name for repeatable candidate selection. Present for category results. */
+            categoryQuery?: string;
+            /** @description Authorized published-category matches, exact matches first. Present only when selection is required; article items and filters are empty. */
+            categoryCandidates?: {
+                /** @description Exact published category UUID, uncategorized, or empty string for no category filter. */
+                id: string;
+                name: string;
+                articleCount: number;
+            }[];
         };
     };
     responses: {
