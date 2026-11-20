@@ -15,6 +15,9 @@ interface Binding {
   id: string;
   createdAt: string;
   expiresAt: string;
+  deviceId?: string | null;
+  renewable?: boolean;
+  confirmationRequired?: boolean;
 }
 
 function hasCode(error: unknown, ...codes: string[]) {
@@ -178,7 +181,13 @@ export function ZhiyueConnectionPage({ account }: { account: Account }) {
                     <div>
                       <strong>知阅眼镜</strong>
                       <p>绑定时间：{formatDate.format(new Date(binding.createdAt))}</p>
-                      <p>到期时间：{formatDate.format(new Date(binding.expiresAt))}</p>
+                      <p>{binding.confirmationRequired ? '等待眼镜确认连接'
+                        : binding.renewable ? '长期绑定 · 自动续期'
+                        : binding.renewable === false ? '旧版授权 · 需在眼镜上升级'
+                        : '授权状态待服务端更新确认'}</p>
+                      {binding.deviceId && <p>设备标识：{binding.deviceId.slice(-8)}</p>}
+                      {binding.renewable === false && !binding.confirmationRequired &&
+                        <p>旧版授权到期：{formatDate.format(new Date(binding.expiresAt))}</p>}
                     </div>
                     <button
                       className="button secondary"

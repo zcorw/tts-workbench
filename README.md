@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-The standalone CMS is named **Zhisheng (知声)**. MCP now supports updating the owner's article body with a separate `cms:drafts:update` permission and article revision checks. After deployment, refresh tool metadata and authorize the new scope; see [body updates](docs/CMS_MCP.md#修改正文). [Zhisheng MCP](docs/CMS_MCP.md) describes batch draft creation, OAuth/PKCE, durable retries and activation boundaries. MCP is disabled by default; the initial delivery did not deploy it or issue real credentials.
+The standalone CMS is named **Zhisheng (知声)**. [Zhisheng MCP](docs/CMS_MCP.md) supports batch draft creation, category creation and edits to article text, categories and tags, with OAuth/PKCE; category creation and full article updates use durable write receipts. The separate `update_article_body` tool requires `cms:drafts:update` and an article revision, granting access to body-only edits; see [body updates](docs/CMS_MCP.md#修改正文). Existing connections must authorize each new scope. After deployment, refresh client tool metadata and reconnect as needed. MCP is disabled by default; code delivery does not establish production activation or real-client acceptance.
 
 A Japanese speech workbench built with React, NestJS and PostgreSQL. Selecting text to change its pronunciation saves a personal rule for the current and future articles. The original text is preserved; there is no “this occurrence only” flow.
 
@@ -61,7 +61,7 @@ See [Azure/AWS configuration](docs/operations.md#azure-与-aws-tts-配置) for r
 - Separate Gateway: adjacent `TTS-gateway`, providing library 0.1.1, host injection and ja-JP rules; it fixes floating-point validation of valid two-decimal speeds such as 1.15.
 - The application consumes versioned archives in `vendor` and lockfiles, without importing sibling repository source.
 
-The [OpenAPI 1.7.0 contract](docs/openapi.yaml) has 78 operations covering batch audio, Zhisheng MCP and Zhiyue device pairing/read-only endpoints. See [reading library](docs/CMS_READING.md) and [article delivery](docs/ARTICLE_MANAGEMENT.md). Interface changes must update the contract and generated frontend types together.
+The [OpenAPI 1.9.0 contract](docs/openapi.yaml) has 82 operations covering batch audio, Zhisheng MCP and Zhiyue device pairing/read-only endpoints. See [voice search](docs/ZHIYUE_VOICE_SEARCH.md) for category/article voice queries and optional OpenAI text semantics configuration, [reading library](docs/CMS_READING.md) and [article delivery](docs/ARTICLE_MANAGEMENT.md). Interface changes must update the contract and generated frontend types together.
 
 ## Deployment
 
@@ -86,3 +86,5 @@ Documented isolated previews: workbench at http://127.0.0.1:4382/ and CMS at htt
 Category management offers parent/child trees, ordering, direct article counts, uncategorized articles and revision-checked bulk categorization. See [categories](docs/CMS_CATEGORIES.md).
 
 The reading library browses published category snapshots, shows three-line body previews and plays audio on demand inside cards, with matching counts and pagination. Historical category edits do not rewrite old releases. See [reading library](docs/CMS_READING.md).
+
+CMS article management combines publication-state and missing-audio filters with search and categories. The draft filter applies to the CMS website; Zhiyue devices continue to read published articles only. See [article status filtering](docs/ZHIYUE_ARTICLE_STATUS.md).

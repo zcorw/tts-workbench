@@ -218,6 +218,9 @@ test("CMS: real PG atomic editing, imports, fixed releases and scoped read-only 
       assert.equal(edited.status, 200);
       article = edited.data;
       assert.equal(article.audioStale, true);
+      const staleAudioFilter = await a.call(`/v1/cms/articles?audio=missing&category=${secondCategory.id}`);
+      assert.equal(staleAudioFilter.status, 200);
+      assert.equal(staleAudioFilter.data.total, 0, "Stale saved audio is still present");
       providerBytes = Buffer.concat([tone, Buffer.from([0])]);
       const generated = await generate();
       article = (await a.call(`/v1/cms/articles/${article.id}`)).data;
@@ -251,6 +254,42 @@ test("CMS: real PG atomic editing, imports, fixed releases and scoped read-only 
       article = (await a.call(`/v1/cms/articles/${article.id}`)).data;
       assert.equal(article.audioStale, false);
       assert.equal((await a.call(`/v1/cms/read/articles/${article.id}`)).data.text, firstRelease.text);
+    });
+    await t.test("Missing working audio filtering composes with existing filters and paginates exact totals", async () => {
+      const beforeTts = providerCalls;
+      const legacy = await a.call("/v1/articles", "POST", { title: "音声なしの旧記事", text: "CMSメタデータなし。" });
+      assert.equal(legacy.status, 201);
+      const missing = await a.call("/v1/cms/articles?audio=missing");
+      assert.equal(missing.status, 200);
+      assert.equal(missing.data.total, 3);
+      assert(missing.data.items.every((item) => item.audio === null));
+      assert(missing.data.items.some((item) => item.id === legacy.data.id && item.cms.revision === 0));
+      assert(!missing.data.items.some((item) => item.id === article.id));
+      const all = await a.call("/v1/cms/articles");
+      assert.equal(all.data.total, 4);
+      assert(all.data.items.some((item) => item.id === article.id && item.audio));
+      const filters = `audio=missing&category=${category.id}&tag=${tag.id}&status=draft&q=${encodeURIComponent("輸入記事")}&limit=1`;
+      const first = await a.call(`/v1/cms/articles?${filters}`);
+      const second = await a.call(`/v1/cms/articles?${filters}&offset=1`);
+      for (const response of [first, second]) {
+        assert.equal(response.status, 200);
+        assert.equal(response.data.total, 2);
+        assert.equal(response.data.items.length, 1);
+        assert.equal(response.data.items[0].audio, null);
+      }
+      assert.notEqual(first.data.items[0].id, second.data.items[0].id);
+      const end = await a.call(`/v1/cms/articles?${filters}&offset=2`);
+      assert.equal(end.data.total, 2);
+      assert.deepEqual(end.data.items, []);
+      const uncategorized = await a.call("/v1/cms/articles?audio=missing&category=uncategorized");
+      assert.equal(uncategorized.data.total, 1);
+      assert.equal(uncategorized.data.items[0].id, legacy.data.id);
+      assert.equal((await a.call("/v1/cms/articles?audio=missing&status=published")).data.total, 0);
+      assert.equal((await b.call("/v1/cms/articles?audio=missing")).data.total, 0);
+      assert.equal((await request("/v1/cms/articles?audio=missing")).status, 401);
+      assert.equal((await a.call("/v1/cms/articles?audio=invalid")).status, 400);
+      assert.equal((await a.call("/v1/cms/read/articles?audio=missing")).status, 400);
+      assert.equal(providerCalls, beforeTts, "Filtering never generates audio");
     });
     let token;
     await t.test("Scoped credentials read current releases/RSS but cannot edit or generate", async () => {

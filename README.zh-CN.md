@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-独立 CMS 现命名为**知声**。MCP 现支持通过独立 `cms:drafts:update` 权限修改本人文章正文，并检查文章版本；部署后需刷新工具元数据并重新授权，详见[正文修改](docs/CMS_MCP.md#修改正文)。ChatGPT 批量保存草稿的 MCP 第一版、OAuth/PKCE、幂等重试和启用边界见 [知声 MCP](docs/CMS_MCP.md)；默认关闭，未部署或签发真实凭据。
+独立 CMS 现命名为**知声**。[知声 MCP](docs/CMS_MCP.md) 支持批量创建草稿、创建分类和修改文章文本、分类与标签，采用 OAuth/PKCE；分类创建与完整文章更新使用持久化写入收据。独立的 `update_article_body` 工具要求 `cms:drafts:update` 权限和文章版本，仅开放正文修改，详见[正文修改](docs/CMS_MCP.md#修改正文)。已有连接必须逐项授权新增作用域；部署后刷新客户端工具元数据，并按需重新连接。MCP 默认关闭；代码交付不代表生产启用或真实客户端验收通过。
 
 React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默认保存为本人规则，适用于当前及以后文章；原文保持不变，没有“仅此处”分支。
 
@@ -31,7 +31,7 @@ React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默�
 
 Windows Docker Compose 一键重建：准备 `.env` 并启动 Docker Desktop 后，双击根目录 `rebuild.cmd` 或执行 `.\rebuild.cmd`；无缓存用 `.\rebuild.cmd --no-cache`。保留数据库卷，端口读取 `APP_HOST_PORT`（默认8080），完成后显示实际访问地址。配置与已有项目数据说明见[运维说明](docs/operations.md#windows-一键重建-docker-compose)。
 
-当前运行的开发页面：[打开工作台](http://127.0.0.1:4181/)，API为127.0.0.1:3000，两者已接入文章及最新音频功能。前端通过Vite代理/v1和/health；当前隔离开发环境允许注册测试账户，尚未配置供应商。现有8080实例没有重建，代码提交不等于已经更新该实例。
+文档记录的开发页面：[打开工作台](http://127.0.0.1:4181/)，API为127.0.0.1:3000，两者已接入文章及最新音频功能。前端通过Vite代理/v1和/health；当前隔离开发环境允许注册测试账户，尚未配置供应商。现有8080实例没有重建，代码提交不等于已经更新该实例。
 
 ```sh
 npm ci
@@ -61,11 +61,11 @@ npm --prefix apps/web run dev
 - 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
 - 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
 
-当前 [OpenAPI 1.7.0](docs/openapi.yaml) 含 78 个操作，包含批量音频、知声 MCP 和知阅设备配对与只读接口。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)。接口修改须同步契约和前端生成类型。
+当前 [OpenAPI 1.9.0](docs/openapi.yaml) 含 82 个操作，包含批量音频、知声 MCP 和知阅设备配对与只读接口。知阅分类/文章语音检索及可选 OpenAI 文本语义配置见[语音检索接口](docs/ZHIYUE_VOICE_SEARCH.md)。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)。接口修改须同步契约和前端生成类型。
 
 ## 部署
 
-[Dockerfile](Dockerfile)将前端/API及版本包构建为同一应用镜像。[Compose](compose.yaml)整个栈只发布一个显式绑定127.0.0.1的宿主端口（默认8080可配置），数据库不发布宿主端口；由宿主Nginx统一代理页面/API/音频并负责TLS。
+[Dockerfile](Dockerfile)将前端/API及版本包构建为同一应用镜像。[Compose](compose.yaml)将发布的应用端口显式绑定127.0.0.1（默认8080可配置），数据库不发布宿主端口；由宿主Nginx统一代理页面/API/音频并负责TLS。
 
 [GitHub Actions](.github/workflows/deploy.yml)支持手动触发验证、推送镜像并通过校验主机身份的SSH远程更新VPS。镜像digest可追踪、部署串行、先备份及兼容迁移，健康失败恢复旧应用；不自动删除数据库卷。
 
@@ -73,9 +73,9 @@ npm --prefix apps/web run dev
 
 ## 验证与文档
 
-本次增量：应用完整6项真实HTTP/PG测试、文章与音频备份恢复通过；Gateway语速修复17项定向测试及构建/类型检查通过。产品独立执行文章CRUD接口与浏览器验收、最新音频7组接口与5组浏览器检查，验证真实解码播放下载、失败保留、替换及刷新恢复。前端各组交互、回归与构建记录见[前端报告](apps/web/qa/REPORT.md)。测试音调不代表真实日文发音效果通过。
+文章/音频交付历史记录：应用完整6项真实HTTP/PG测试、文章与音频备份恢复通过；Gateway语速修复17项定向测试及构建/类型检查通过。产品独立执行文章CRUD接口与浏览器验收、最新音频7组接口与5组浏览器检查，验证真实解码播放下载、失败保留、替换及刷新恢复。前端各组交互、回归与构建记录见[前端报告](apps/web/qa/REPORT.md)。测试音调不代表真实日文发音效果通过。
 
-[开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地Git由产品按完成的功能点提交；尚未推送或远程部署。
+[开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地 Git 交付按完成的功能组织；这些历史交付记录不代表已推送或远程部署。
 
 ## CMS 独立站点
 
@@ -86,3 +86,5 @@ CMS 前端位于 apps/cms，拥有自己的首页、布局、导航、登录页�
 分类管理提供父子树、排序、直接文章计数、未分类入口与按版本检查的批量归类。使用与数据边界见 [分类管理说明](docs/CMS_CATEGORIES.md)。
 
 阅读库提供基于发布快照的分类浏览、三行正文预览和卡片内按需播放，数量与分页保持一致；历史分类变更不改写旧发布。详见 [阅读库说明](docs/CMS_READING.md)。
+
+CMS 文章管理可组合使用发布状态、无音频、搜索和分类筛选。草稿筛选仅用于知声网页，知阅设备继续只读已发布文章。详见[文章状态筛选](docs/ZHIYUE_ARTICLE_STATUS.md)。

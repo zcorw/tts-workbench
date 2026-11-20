@@ -14,6 +14,8 @@ export const MCP_SCOPES = [
   "cms:read",
   "cms:drafts:create",
   "cms:drafts:update",
+  "cms:categories:create",
+  "cms:articles:update",
 ];
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");

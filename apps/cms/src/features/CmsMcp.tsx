@@ -22,6 +22,8 @@ interface Authorization {
 const scopeNames: Record<string, string> = {
   'cms:read': '读取本人全部文章草稿、栏目和标签',
   'cms:drafts:create': '批量创建文章草稿、查询创建结果',
+  'cms:categories:create': '创建本人账户的文章分类',
+  'cms:articles:update': '修改本人文章的标题、正文、摘要、分类和标签',
   'cms:drafts:update': '修改本人文章的工作草稿正文',
 };
 const scopeName = (scope: string) => scopeNames[scope] ?? scope;
@@ -93,7 +95,9 @@ export function CmsMcp({ accountId }: { accountId: string }) {
         <p role="status">正在检查连接…</p>
       ) : (
         <>
-          <p>在 ChatGPT 会话中保存或修改文章草稿。创建每批最多 20 篇，修改正文需单独授权。</p>
+          <p>
+            在 ChatGPT 会话中读取文章、创建分类、批量保存草稿或修改文章。创建每批最多 20 篇，正文专用修改需单独授权。
+          </p>
           {consent && (
             <div className="site-empty" aria-label="MCP 授权请求">
               <h2>允许此客户端访问你的知声账户？</h2>

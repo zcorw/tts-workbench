@@ -49,8 +49,10 @@ import { ArticleService } from "./articles.js";
 import { CmsService } from "./cms.js";
 import { createCmsRouter } from "./cms-http.js";
 import { ZhiyueDeviceService } from "./zhiyue-device.js";
+import { createZhiyueSearch } from "./zhiyue-search.js";
 import { createZhiyueAccountRouter, createZhiyueDeviceRouter } from "./zhiyue-http.js";
 import { McpBatchService } from "./mcp-batch.js";
+import { McpWriteService } from "./mcp-write.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { createMcpRouter, createMcpAccountRouter } from "./mcp-http.js";
 import { GenerationAdmission } from "./generation-admission.js";
@@ -71,6 +73,7 @@ export interface State {
   articles: ArticleService;
   cms: CmsService;
   mcpBatch: McpBatchService;
+  mcpWrite: McpWriteService;
   mcpOAuth: McpOAuthService;
   audioBatches: AudioBatchService;
   generationAdmission: GenerationAdmission;
@@ -498,6 +501,7 @@ export async function createApplication(
     articles,
     cms,
     mcpBatch: new McpBatchService(pool, articles, cms),
+    mcpWrite: new McpWriteService(articles, cms),
     mcpOAuth: new McpOAuthService(pool, articles, config),
     audioBatches,
     generationAdmission,
@@ -539,13 +543,16 @@ export async function createApplication(
   });
   if (zhiyue && zhiyueOrigin) {
     // 只有单独的设备路由绕过网页 Cookie/CSRF 流程。
-    server.use("/v1/zhiyue", createZhiyueDeviceRouter(zhiyue, cms, zhiyueOrigin, sites.isCms));
+    server.use("/v1/zhiyue", createZhiyueDeviceRouter(zhiyue, cms, zhiyueOrigin, sites.isCms, createZhiyueSearch({
+      apiKey: config.ZHIYUE_OPENAI_API_KEY, model: config.ZHIYUE_OPENAI_MODEL,
+    })));
   }
   server.use(
     createMcpRouter(
       config,
       state.mcpOAuth,
       state.mcpBatch,
+      state.mcpWrite,
       cms,
       (req) => !config.CMS_DIST || sites.isCms(req),
     ),
@@ -653,12 +660,14 @@ export async function createApplication(
   app.useGlobalFilters(new ErrorFilter());
   await app.init();
   audioBatches.start();
+  zhiyue?.startCleanup();
   const cmsServer = sites.cmsServer(server);
   let closing: Promise<void> | undefined;
   const close = () =>
     (closing ??= (async () => {
       await Promise.all([closeHttp(cmsServer), closeHttp(app.getHttpServer())]);
       await audioBatches.close();
+      await zhiyue?.close();
       await app.close();
       await speech.close();
       sessions.store.close();
