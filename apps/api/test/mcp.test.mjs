@@ -79,7 +79,10 @@ test('知声 MCP: isolated HTTP, official SDK, OAuth and durable draft receipts'
     await t.test('Discovery, origin rejection, session cookies and existing read credentials cannot authorize MCP',async()=>{
       const metadata=await http('/.well-known/oauth-protected-resource/mcp');
       assert.equal(metadata.status,200);assert.equal(metadata.data.resource,config.CMS_PUBLIC_ORIGIN+'/mcp');
+      const scopes=['cms:read','cms:drafts:create','cms:drafts:update','cms:categories:create','cms:articles:update'];
+      assert.deepEqual([...metadata.data.scopes_supported].sort(),[...scopes].sort());
       const as=(await http('/.well-known/oauth-authorization-server')).data;
+      assert.deepEqual([...as.scopes_supported].sort(),[...scopes].sort());
       assert.deepEqual(as.code_challenge_methods_supported,['S256']);assert.deepEqual(as.token_endpoint_auth_methods_supported,['none']);assert.equal(as.registration_endpoint,undefined);
       const denied=await http('/mcp',{method:'POST',body:{},cookie:a.cookie()});
       assert.equal(denied.status,401);assert.match(denied.headers.get('www-authenticate'),/resource_metadata=/);
@@ -110,7 +113,14 @@ test('知声 MCP: isolated HTTP, official SDK, OAuth and durable draft receipts'
       const client=new Client({name:'zhisheng-fixture',version:'1.0'});
       await client.connect(new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${tokens.access_token}`}}}));
       clients.push(client);
-      const list=await client.listTools();assert.equal(list.tools.length,6);
+      const list=await client.listTools();assert.equal(list.tools.length,7);
+      const update=list.tools.find(x=>x.name==='update_article_body');
+      assert.equal(update.annotations.readOnlyHint,false);
+      assert.equal(update.annotations.destructiveHint,true);
+      assert.equal(update.annotations.idempotentHint,false);
+      assert.deepEqual(update._meta.securitySchemes[0].scopes,['cms:drafts:update']);
+      assert.deepEqual(list.tools.find(x=>x.name==='create_category')._meta.securitySchemes[0].scopes,['cms:categories:create']);
+      assert.deepEqual(list.tools.find(x=>x.name==='update_article')._meta.securitySchemes[0].scopes,['cms:articles:update']);
       assert.equal(list.tools.find(x=>x.name==='create_article_drafts').annotations.readOnlyHint,false);
       assert.equal(list.tools.find(x=>x.name==='get_article').annotations.readOnlyHint,true);
       assert.equal(list.tools[0]._meta.securitySchemes[0].type,'oauth2');
@@ -302,6 +312,77 @@ test('知声 MCP: isolated HTTP, official SDK, OAuth and durable draft receipts'
       assert.equal(first.created,1);assert.equal(first.pending,1);
       const second=await runtime.state.mcpBatch.create(a.owner,input);
       assert.equal(second.created,2);assert.equal(second.items[0].articleId,first.items[0].articleId);
+    });
+    await t.test('Body edits require explicit scope and preserve title, CMS, publication and audio',async()=>{
+      const created=await a.call('/v1/cms/articles','POST',{
+        title:'本文更新の専用記事',text:'編集前の本文',
+        cms:{slug:`body-${randomUUID()}`,summary:'保持する要約',categoryId:null,tagIds:[]},
+      });
+      assert.equal(created.status,201);
+      const id=created.data.id;
+      const release=await runtime.state.cms.publish(a.owner,id,{
+        expectedRevision:created.data.revision,
+        expectedCmsRevision:created.data.cms.revision,expectedAudioId:null,
+      });
+      const audio={audioId:randomUUID(),contentRevision:created.data.contentRevision,
+        ruleVersion:created.data.currentRuleVersion,byteLength:1};
+      await runtime.pool.query(
+        'INSERT INTO wb_article_audio(article_id,generation_seq,metadata,data) VALUES($1,1,$2,$3)',
+        [id,audio,Buffer.from([1])],
+      );
+      const before=await runtime.state.cms.get(a.owner,id);
+      assert.equal(before.audioStale,false);
+      const text='  日本語\nか\u3099😀\t編集後の本文。\n\n';
+      const input={articleId:id,text,expectedRevision:before.revision};
+      for (const token of [tokens.access_token,(await mint(a,'cms:read')).access_token]) {
+        const denied=(await call(token,'update_article_body',input)).result;
+        assert.equal(denied.isError,true);
+        assert.equal(denied.structuredContent.code,'INSUFFICIENT_SCOPE');
+        assert.match(denied._meta['mcp/www_authenticate'][0],/cms:drafts:update/);
+      }
+      const updater=await mint(a,'cms:drafts:update');
+      assert.equal((await call(updater.access_token,'get_article',{articleId:id})).result.structuredContent.code,'INSUFFICIENT_SCOPE');
+      const updated=(await call(updater.access_token,'update_article_body',input)).result;
+      assert.notEqual(updated.isError,true);
+      const saved=updated.structuredContent;
+      assert.equal(saved.text,text);assert.equal(saved.title,before.title);
+      assert.deepEqual(saved.cms,before.cms);assert.deepEqual(saved.audio,audio);
+      assert.equal(saved.revision,before.revision+1);
+      assert.equal(saved.contentRevision,before.contentRevision+1);
+      assert.equal(saved.audioStale,true);
+      assert.deepEqual(await runtime.state.cms.release(a.owner,id,release.id),release);
+      const noop=(await call(updater.access_token,'update_article_body',{
+        articleId:id,text,expectedRevision:saved.revision,
+      })).result.structuredContent;
+      assert.equal(noop.revision,saved.revision);assert.equal(noop.contentRevision,saved.contentRevision);
+      const stale=(await call(updater.access_token,'update_article_body',input)).result;
+      assert.equal(stale.isError,true);assert.equal(stale.structuredContent.code,'REVISION_CONFLICT');
+      const foreign=await mint(b,'cms:drafts:update');
+      assert.equal((await call(foreign.access_token,'update_article_body',{
+        ...input,expectedRevision:saved.revision,
+      })).result.structuredContent.code,'NOT_FOUND');
+      for(const changes of [
+        {title:'不正な変更'},{cms:{}},{publish:true},{accountId:b.owner},
+        {text:'sensitive\u0000body'},{text:'x'.repeat(10001)},{text:'\ud800'},
+        {articleId:'invalid'},{expectedRevision:0},{expectedRevision:'1'},
+      ]) {
+        const invalid=(await call(updater.access_token,'update_article_body',{
+          ...input,expectedRevision:saved.revision,...changes,
+        })).result;
+        assert.equal(invalid.isError,true);assert.equal(invalid.structuredContent.code,'INVALID_REQUEST');
+        assert.ok(!JSON.stringify(invalid).includes('sensitive'));
+      }
+      assert.equal((await runtime.state.cms.get(a.owner,id)).text,text);
+      const race=await Promise.allSettled(['並行更新 A','並行更新 B'].map(text=>
+        runtime.state.cms.updateBody(a.owner,id,{text,expectedRevision:saved.revision}),
+      ));
+      assert.equal(race.filter(x=>x.status==='fulfilled').length,1);
+      assert.equal(race.find(x=>x.status==='rejected').reason.code,'REVISION_CONFLICT');
+      const latest=await runtime.state.cms.get(a.owner,id);
+      assert.equal(latest.revision,saved.revision+1);
+      assert.ok(['並行更新 A','並行更新 B'].includes(latest.text));
+      const empty=await runtime.state.cms.updateBody(a.owner,id,{text:'',expectedRevision:latest.revision});
+      assert.equal(empty.text,'');
     });
     await t.test('Refresh rotates tokens; replay revokes grant, and expiry/disabled accounts fail closed',async()=>{
       const value=await mint(a);

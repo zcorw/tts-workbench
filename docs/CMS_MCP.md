@@ -1,6 +1,6 @@
-# 知声 MCP 第一版
+# 知声 MCP
 
-知声是 `apps/cms` 独立 CMS 的产品名称；原语音工作台保留原名。两站共享账户、数据库和文章服务。本增量为 ChatGPT 会话提供私有草稿创建，并扩展为授权创建分类、编辑已有工作稿。不自动发布或调用收费 TTS，不增加常驻容器；MCP 写入收据使用一张新的数据库表。
+知声是 `apps/cms` 独立 CMS 的产品名称；原语音工作台保留原名。两站共享账户、数据库和文章服务。MCP 为 ChatGPT 会话提供私有草稿创建、授权创建分类和编辑已有工作稿，并提供独立授权的正文专用更新工具。不自动发布或调用收费 TTS，不增加常驻容器；分类创建与完整文章更新使用持久化写入收据，正文专用更新只使用文章版本检查。
 
 ## 工具与连接
 
@@ -12,12 +12,33 @@
 | `get_article` | `cms:read` | 本人一篇当前工作草稿及元数据，包含文章与 CMS 双 revision |
 | `create_category` | `cms:categories:create` | 创建本人一级/子分类，按名称去重并返回分类 ID |
 | `update_article` | `cms:articles:update` | 修改工作稿的文本、分类与标签，双版本并发校验 |
+| `update_article_body` | `cms:drafts:update` | 仅修改工作稿正文，按文章版本并发校验 |
 | `create_article_drafts` | `cms:drafts:create` | 每批 1–20 篇草稿、按项收据和编辑链接 |
 | `get_draft_batch` | `cms:drafts:create` | 查询已登记批次的结果，不返回正文 |
 
-`cms:read` 可读取本人全部工作草稿和分类，第一版没有栏目级授权。授权页逐项说明范围，由本人明确允许；只需创建的客户端可仅申请创建权限。写入分类或修改文章需要分别授权 `cms:categories:create` 或 `cms:articles:update`；已有只读及草稿创建授权不会自动拥有新权限，需重新授权新范围。MCP 工具不能发布、删除或生成音频；账户隔离和作用域在服务端执行，描述和注解不提供权限。
+`cms:read` 可读取本人全部工作草稿和分类，第一版没有栏目级授权。授权页逐项说明范围，由本人明确允许；只需创建的客户端可仅申请创建权限。创建分类、完整文章更新和正文专用更新分别需要 `cms:categories:create`、`cms:articles:update`、`cms:drafts:update`。这些作用域互不替代；已有只读及草稿创建授权不会自动拥有新权限，需重新授权新范围。MCP 工具不能发布、删除或生成音频；账户隔离和作用域在服务端执行，描述和注解不提供权限。
 
 双端口模式仅 CMS 入口提供机器端点及 OAuth 发现，工作台端口返回 404。Cookie、旧 CMS 读取令牌和管理员密钥均不能授权 MCP；MCP 令牌也不能授权现有 REST API。浏览器同意和撤销继续使用 Session/Origin/CSRF。存在 Origin 时只接受配置 CMS origin；服务器间请求可不带 Origin，不开放通配 CORS。
+
+## 修改正文
+
+`update_article_body` 用于只授予正文修改权限的连接；需要同时修改标题、摘要、分类或标签时，使用下文的 `update_article` 及其独立权限和幂等收据。
+
+用户要求修改时，先用 `get_article` 读取当前正文和 `revision`，再调用 `update_article_body`：
+
+```json
+{
+  "articleId": "00000000-0000-4000-8000-000000000001",
+  "text": "修改后的完整日文正文。\n保留空白和原文格式。",
+  "expectedRevision": 3
+}
+```
+
+只接受上述三个字段；正文沿用文章校验（最多 10000 Unicode 码点、49152 UTF-8 字节，不接受非法 Unicode 或控制字符），可保存空正文。返回最新文章详情及版本。更新仅作用于本人当前工作草稿，保留标题、slug、摘要、分类、标签、发布快照和已成功生成的音频；正文实际变化会递增文章与正文版本，并让旧音频标为过期，不会触发合成。相同正文配合当前版本是 no-op。
+
+`expectedRevision` 必须与文章当前 `revision` 一致；冲突返回 `REVISION_CONFLICT` 且不写入。重新读取并核对用户修改，不得自动替换版本号后覆盖。两个相同版本的并发正文修改最多一个成功。响应丢失时先读文章核实，重发旧版本可能返回冲突；本工具没有创建批次或 `update_article` 那样的幂等收据。跨账户文章返回 `NOT_FOUND`。本工具不接受标题或 CMS 元数据；可在知声网页中修改，或另行授权 `update_article`。
+
+使用读取后修改流程的连接应申请 `cms:read cms:drafts:update`；需要创建时再加 `cms:drafts:create`。部署新版本后刷新客户端工具元数据，并重新授权新增作用域；现有访问/刷新令牌不会扩大权限。正文专用工具无需额外迁移；从旧版本升级整套 MCP 时，仍须运行下文分类/完整文章写入所需的既有迁移。
 
 ## 批量与重试
 
@@ -91,7 +112,7 @@ ID 限 1–100 位 ASCII 字母、数字及 `._:-`，首位为字母或数字。
 
 ## OAuth 与实际启用
 
-**默认 `CMS_MCP_ENABLED=false`。本次交付不改真实配置、不签发真实凭据；新增迁移仅在隔离库验证。** 生产备份/迁移、实际启用、访问范围及公网/Tunnel 暴露须经维护者另行批准。
+**默认 `CMS_MCP_ENABLED=false`。本次交付不改真实配置、不签发真实凭据；原有 MCP 迁移仅在隔离库验证；正文专用更新无需额外迁移，分类创建与完整文章更新仍需上文已说明的写入收据迁移。** 生产备份/迁移、实际启用、访问范围及公网/Tunnel 暴露须经维护者另行批准。
 
 采用预注册**公共 OAuth 客户端**，client_id 为公开标识，无客户端秘密，不提供开放 DCR 或任意 CIMD 抓取。不要把账户密码、SESSION_SECRET、旧令牌或长期管理员凭据放进 ChatGPT。
 
@@ -126,6 +147,6 @@ CMS_MCP_REDIRECT_URIS=https://chatgpt.com/replace-with-actual-callback
 
 MCP 测试要求显式 TEST_DATABASE_URL：全新 `zhisheng_mcp_test_20261105*` 库、loopback 或专用 `mcp-qa-db` 主机；也兼容仓库已有 CI 专用 `cms_reading_test_20261027` 库名，以便原 `npm test` 同时运行全部用例。原测试的固定库名保护没有改动。本次在**新建独立 PG 容器**另建同名空库运行，没有连接旧 QA 容器/卷或生产数据。不要对任何已有业务库运行测试。证据见 [MCP 验收记录](CMS_MCP_VALIDATION.md)。
 
-未执行真实 ChatGPT 连接/回调、公开 HTTPS/TLS、Tunnel、VPS、生产迁移或真实供应商调用。本地官方 SDK 互操作不代表目标 ChatGPT 工作区能力已经验收，目前没有已部署的可用连接。
+未执行真实 ChatGPT 连接/回调、公开 HTTPS/TLS、Tunnel、VPS、生产迁移或真实供应商调用。本地官方 SDK 互操作不代表目标 ChatGPT 工作区能力已经验收，正文修改功能仍需部署并在真实连接中刷新工具、重新授权后验收。
 
 依据（2026-11-05）：[OpenAI 身份验证](https://developers.openai.com/plugins/build/auth)、[连接与测试](https://developers.openai.com/plugins/deploy/connect-chatgpt)、[MCP 授权](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)、[当前 HTTP 与兼容](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)、[官方 SDK](https://github.com/modelcontextprotocol/typescript-sdk)。

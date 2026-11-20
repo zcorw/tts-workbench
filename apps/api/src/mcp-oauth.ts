@@ -13,6 +13,7 @@ import { ApiError } from "./errors.js";
 export const MCP_SCOPES = [
   "cms:read",
   "cms:drafts:create",
+  "cms:drafts:update",
   "cms:categories:create",
   "cms:articles:update",
 ];

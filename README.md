@@ -1,86 +1,90 @@
 # TTS Workbench
 
-独立 CMS 现命名为**知声**。ChatGPT 批量保存草稿的 MCP 第一版、OAuth/PKCE、幂等重试和启用边界见 [知声 MCP](docs/CMS_MCP.md)；默认关闭，未部署或签发真实凭据。
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-React + NestJS + PostgreSQL 日文语音工作台。正文选词修改读法默认保存为本人规则，适用于当前及以后文章；原文保持不变，没有“仅此处”分支。
+The standalone CMS is named **Zhisheng (知声)**. [Zhisheng MCP](docs/CMS_MCP.md) supports batch draft creation, category creation and edits to article text, categories and tags, with OAuth/PKCE; category creation and full article updates use durable write receipts. The separate `update_article_body` tool requires `cms:drafts:update` and an article revision, granting access to body-only edits; see [body updates](docs/CMS_MCP.md#修改正文). Existing connections must authorize each new scope. After deployment, refresh client tool metadata and reconnect as needed. MCP is disabled by default; code delivery does not establish production activation or real-client acceptance.
 
-真实账户、Session/CSRF、显示名称设置、个人读法CRUD、版本冲突及Gateway日文合成链路已实现。“我的文章”支持搜索分页、新建、打开、编辑保存与删除。每篇只保存最新标题正文和最后成功音频；刷新或重新登录后可继续编辑、播放与下载。详见[文章管理增量](docs/ARTICLE_MANAGEMENT.md)。无供应商配置时，音色目录为空、合成返回503；本地协议测试不代表真实日文发音效果验收。
+A Japanese speech workbench built with React, NestJS and PostgreSQL. Selecting text to change its pronunciation saves a personal rule for the current and future articles. The original text is preserved; there is no “this occurrence only” flow.
 
-在“我的文章”新建或打开文章，编辑后点击“保存文章”。点击“生成语音”会先保存当前修改，再使用已保存正文生成；成功后替换上一次音频，失败保留旧音频。正文、个人读法或朗读设置变化后会提示重新生成。删除文章会一并删除音频，个人读法仍保留；不提供文章或音频历史版本。
+Accounts, Session/CSRF, display names, personal pronunciation CRUD, revision conflicts and Gateway Japanese synthesis are implemented. “My articles” supports search, pagination, creation, opening, editing, saving and deletion. Each article retains its latest title/body and last successful audio, available after refresh or login. See [article management](docs/ARTICLE_MANAGEMENT.md). Without provider configuration, voices are empty and synthesis returns 503. Local protocol tests do not validate real Japanese pronunciation.
 
-## VPS 部署
+Create or open an article in “My articles”, edit it and select “Save article”. “Generate speech” first saves changes and then synthesizes the saved body. Success replaces the previous audio; failure preserves it. Changes to the body, pronunciation rules or speech settings prompt regeneration. Deleting an article also deletes its audio, while personal rules remain. Article and audio history are unavailable.
 
-完整步骤见 [VPS 部署指南](docs/VPS_DEPLOYMENT.md)：支持上传源码后直接 Docker Compose 部署，以及 GitHub Actions 构建镜像并通过 SSH 发布。文档包含环境配置、Nginx/TLS、首次账号、更新回滚、文章/音频备份恢复和故障排查。
+## VPS deployment
 
-## 首次部署后：先创建登录账号
+The [VPS deployment guide](docs/VPS_DEPLOYMENT.md) covers uploading source for Docker Compose and building images with GitHub Actions for SSH deployment. It includes environment configuration, Nginx/TLS, the first account, updates/rollback, article/audio backup and recovery, and troubleshooting.
 
-**没有默认账号或默认密码。** 首次 Compose 部署及迁移成功后，Windows 本地按以下步骤初始化（密码 **8–128 字符**）：
+## Create the first login account
 
-1. 在根 `.env` 临时添加 `ACCOUNT_PASSWORD='你设置的初始密码'`，将引号内文字替换为实际密码。
-2. 执行 `.\rebuild.cmd`，让应用容器读取新增变量；记下输出的项目名和访问地址。
-3. 默认项目运行 `docker exec tts-workbench-app-1 node apps/api/dist/operations.js create admin "我的账户"`。`admin` 只是可替换的登录名，不代表管理员角色。自定义项目请使用[完整步骤](docs/operations.md#首次部署后的账号初始化)定位对应容器。
-4. 输出包含 `id` 和 `login` 的 JSON 且退出码为0表示成功。删除根 `.env` 的 `ACCOUNT_PASSWORD` 行，再执行 `.\rebuild.cmd`，移除应用容器持有的明文；之后在输出地址使用刚才的登录名和密码登录。
+**There is no default account or password.** After the first Compose deployment and successful migrations, initialize from Windows with a password of **8–128 characters**:
 
-务必在应用容器内创建，避免宿主机 `node --env-file=.env ... create` 连到旧开发库。VPS / GitHub Actions 部署后的临时密码传递、清理验证和常见错误，见[首次部署后的账号初始化](docs/operations.md#首次部署后的账号初始化)。
+1. Temporarily add `ACCOUNT_PASSWORD='your initial password'` to the root `.env`, replacing the placeholder.
+2. Run `.\rebuild.cmd` so the app container receives it. Note the reported project name and URL.
+3. For the default project, run `docker exec tts-workbench-app-1 node apps/api/dist/operations.js create admin "My account"`. `admin` is a replaceable login name, not an administrator role. For a custom project, locate its container using the [full instructions](docs/operations.md#首次部署后的账号初始化).
+4. JSON containing `id` and `login` with exit code 0 indicates success. Remove `ACCOUNT_PASSWORD` from `.env`, run `.\rebuild.cmd` again to remove the plaintext environment value, then log in with the account you created.
 
-运行基线：Node.js 22.23.4、NestJS 12.2.0；安全依赖覆盖和升级验证说明见[运维说明](docs/operations.md#安全版本与依赖覆盖)。
+Create accounts inside the application container. Running the host's `node --env-file=.env ... create` may connect to an old development database. See [account initialization](docs/operations.md#首次部署后的账号初始化) for VPS/GitHub Actions password handling, cleanup checks and common errors.
 
-## 本地入口
+Runtime baseline: Node.js 22.23.4 and NestJS 12.2.0. See [operations](docs/operations.md#安全版本与依赖覆盖) for dependency overrides and upgrade validation.
 
-Windows Docker Compose 一键重建：准备 `.env` 并启动 Docker Desktop 后，双击根目录 `rebuild.cmd` 或执行 `.\rebuild.cmd`；无缓存用 `.\rebuild.cmd --no-cache`。保留数据库卷，端口读取 `APP_HOST_PORT`（默认8080），完成后显示实际访问地址。配置与已有项目数据说明见[运维说明](docs/operations.md#windows-一键重建-docker-compose)。
+## Local entry points
 
-当前运行的开发页面：[打开工作台](http://127.0.0.1:4181/)，API为127.0.0.1:3000，两者已接入文章及最新音频功能。前端通过Vite代理/v1和/health；当前隔离开发环境允许注册测试账户，尚未配置供应商。现有8080实例没有重建，代码提交不等于已经更新该实例。
+For a Windows Docker Compose rebuild, prepare `.env`, start Docker Desktop and run `.\rebuild.cmd` or double-click `rebuild.cmd`. Use `--no-cache` for an uncached build. Database volumes are retained; the port comes from `APP_HOST_PORT` (default 8080). The script reports the actual URL. See [operations](docs/operations.md#windows-一键重建-docker-compose) for configuration and existing project data.
+
+The documented development page is [the workbench](http://127.0.0.1:4181/), with API at 127.0.0.1:3000; both include articles and latest audio. Vite proxies `/v1` and `/health`. The isolated development environment allows test registration and has no provider configuration. The existing 8080 instance was not rebuilt; a code commit does not update that instance.
 
 ```sh
 npm ci
 npm --prefix apps/api ci
 npm --prefix apps/web ci
-# 复制.env.example为.env，配置数据库、Session秘密及PUBLIC_ORIGIN
+# Copy .env.example to .env and configure the database, session secret and PUBLIC_ORIGIN.
 npm --prefix apps/api run build
-# 在apps/api目录执行：node --env-file=../../.env dist/operations.js migrate
+# From apps/api: node --env-file=../../.env dist/operations.js migrate
 npm --prefix apps/api start
-# 另一终端
+# In another terminal:
 npm --prefix apps/web run dev
 ```
 
-运行、账户开通、供应商配置与测试详见[运维说明](docs/operations.md)。旧HTML原型与apps/web/reference仅作参考，4180与本机账户/浏览器语音不再是正式入口。
+See [operations](docs/operations.md) for running, provisioning accounts, providers and tests. The old HTML prototype and `apps/web/reference` are reference material; port 4180 and browser/local accounts are no longer the supported entry points.
 
-## Azure 与 AWS TTS 配置
+## Azure and AWS TTS
 
-**当前工作台只接入 Azure 日文；填写 AWS Key 不会启用日文 Polly。** Azure 使用 `TTS_AZURE_SPEECH_KEY` 和 `TTS_AZURE_JA_VOICE_ID`，区域固定 `japaneast`。本地修改根 `.env` 后运行 `.\rebuild.cmd`；VPS 修改 `.env.production` 后需重新创建 app 容器。
+**The workbench currently integrates Azure Japanese voices only. Adding AWS keys does not enable Japanese Polly.** Azure uses `TTS_AZURE_SPEECH_KEY` and `TTS_AZURE_JA_VOICE_ID`, with region fixed to `japaneast`. After editing the root `.env` locally, run `.\rebuild.cmd`; after editing `.env.production` on a VPS, recreate the app container.
 
-资源创建、音色选择、配置生效、最短试听、AWS 凭据与最小 IAM 权限，以及尚未实现的 Polly 接入项，见[Azure 与 AWS TTS 配置说明](docs/operations.md#azure-与-aws-tts-配置)。密钥只放服务端配置，不放文档、Git、日志或前端变量；`PUBLIC_ORIGIN` 是网站访问地址，与供应商凭据无关。
+See [Azure/AWS configuration](docs/operations.md#azure-与-aws-tts-配置) for resources, voices, applying configuration, a short listening check, AWS credentials/minimal IAM, and outstanding Polly integration. Keep keys in server configuration, outside documents, Git, logs and frontend variables. `PUBLIC_ORIGIN` is the site address and is unrelated to provider credentials.
 
-## 工程与契约
+## Engineering and contracts
 
-- apps/web：React、Radix Dialog、React Hook Form/Zod、React Router、TanStack Query。
-- apps/api：Nest、Zod、express-session、csrf-sync、PostgreSQL/pg、node-pg-migrate。
-- 独立账户工程：相邻nest-account，提供account-core/account-postgres两个0.1.1包及可选session适配入口。
-- 独立Gateway：相邻TTS-gateway，提供0.1.1库入口、宿主注入和ja-JP规则执行，修复1.15等合法两位小数语速的浮点校验。
-- 应用仅消费vendor里的版本化tgz及锁文件，不引用兄弟仓库src。
+- `apps/web`: React, Radix Dialog, React Hook Form/Zod, React Router and TanStack Query.
+- `apps/api`: NestJS, Zod, express-session, csrf-sync, PostgreSQL/pg and node-pg-migrate.
+- Separate account project: adjacent `nest-account`, providing `account-core`/`account-postgres` 0.1.1 and an optional session adapter.
+- Separate Gateway: adjacent `TTS-gateway`, providing library 0.1.1, host injection and ja-JP rules; it fixes floating-point validation of valid two-decimal speeds such as 1.15.
+- The application consumes versioned archives in `vendor` and lockfiles, without importing sibling repository source.
 
-当前 [OpenAPI 1.8.0](docs/openapi.yaml) 含 82 个操作，包含批量音频、知声 MCP 和知阅设备配对与只读接口。知阅分类/文章语音检索及可选 OpenAI 文本语义配置见[语音检索接口](docs/ZHIYUE_VOICE_SEARCH.md)。阅读库增量见[阅读库说明](docs/CMS_READING.md)，文章管理的交付记录见[增量计划](docs/ARTICLE_MANAGEMENT.md)。接口修改须同步契约和前端生成类型。
+The [OpenAPI 1.9.0 contract](docs/openapi.yaml) has 82 operations covering batch audio, Zhisheng MCP and Zhiyue device pairing/read-only endpoints. See [voice search](docs/ZHIYUE_VOICE_SEARCH.md) for category/article voice queries and optional OpenAI text semantics configuration, [reading library](docs/CMS_READING.md) and [article delivery](docs/ARTICLE_MANAGEMENT.md). Interface changes must update the contract and generated frontend types together.
 
-## 部署
+## Deployment
 
-[Dockerfile](Dockerfile)将前端/API及版本包构建为同一应用镜像。[Compose](compose.yaml)整个栈只发布一个显式绑定127.0.0.1的宿主端口（默认8080可配置），数据库不发布宿主端口；由宿主Nginx统一代理页面/API/音频并负责TLS。
+The [Dockerfile](Dockerfile) builds both frontends, the API and versioned packages into one application image. [Compose](compose.yaml) binds published application ports explicitly to loopback (8080 by default, configurable); the database has no published host port. Host Nginx proxies pages/API/audio and terminates TLS.
 
-[GitHub Actions](.github/workflows/deploy.yml)支持手动触发验证、推送镜像并通过校验主机身份的SSH远程更新VPS。镜像digest可追踪、部署串行、先备份及兼容迁移，健康失败恢复旧应用；不自动删除数据库卷。
+[GitHub Actions](.github/workflows/deploy.yml) supports manually triggered validation, image publishing and SSH updates with host identity verification. Image digests are traceable; deployments are serialized, backed up and migrated compatibly. Failed health checks restore the old application. Database volumes are not automatically deleted.
 
-本地已验证镜像构建、Compose单端口/页面/健康、重复启动、健康失败后的配置恢复和数据保留、备份恢复。未连接真实VPS或执行远程workflow；宿主Nginx代理/TLS及真实日文音频仍有明确未验收项，见[运维说明](docs/operations.md)。
+Local validation covered image builds, Compose ports/pages/health, repeated startup, recovery after failed health checks with data retention, and backup/restore. No real VPS connection or remote workflow was executed. Nginx/TLS and real Japanese audio retain outstanding acceptance work; see [operations](docs/operations.md).
 
-## 验证与文档
+## Validation and documentation
 
-本次增量：应用完整6项真实HTTP/PG测试、文章与音频备份恢复通过；Gateway语速修复17项定向测试及构建/类型检查通过。产品独立执行文章CRUD接口与浏览器验收、最新音频7组接口与5组浏览器检查，验证真实解码播放下载、失败保留、替换及刷新恢复。前端各组交互、回归与构建记录见[前端报告](apps/web/qa/REPORT.md)。测试音调不代表真实日文发音效果通过。
+Recorded article/audio delivery checks passed six real HTTP/PostgreSQL tests and backup/restore. The Gateway speed fix passed 17 targeted tests plus build/type checks. Independent article CRUD acceptance, seven audio API groups and five browser groups covered actual decoding/playback/download, failure retention, replacement and refresh recovery. See the [frontend report](apps/web/qa/REPORT.md) for interaction, regression and build records. A test tone does not establish real Japanese pronunciation quality.
 
-[开发任务](TODO.md) · [文章管理](docs/ARTICLE_MANAGEMENT.md) · [架构](docs/ARCHITECTURE.md) · [产品说明](docs/PRODUCT_SPEC.md) · [决策](docs/DECISIONS.md) · [前端报告](apps/web/qa/REPORT.md)。本地Git由产品按完成的功能点提交；尚未推送或远程部署。
+[Tasks](TODO.md) · [Articles](docs/ARTICLE_MANAGEMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Product](docs/PRODUCT_SPEC.md) · [Decisions](docs/DECISIONS.md) · [Frontend report](apps/web/qa/REPORT.md). Local Git delivery is organized by completed features; these historical delivery records do not imply a push or remote deployment.
 
-## CMS 独立站点
+## Standalone CMS
 
-CMS 前端位于 apps/cms，拥有自己的首页、布局、导航、登录页和构建产物；原工作台 apps/web 保持自己的入口。两站复用平台 API、正文、发布版本与音频，不新建第二套后端或数据库。独立构建/预览与安全边界见 [CMS 站点说明](docs/CMS_FRONTEND.md)，功能、数据模型与 JSON 导入样例见 [CMS 功能说明](docs/CMS_V1.md)。
+The CMS frontend in `apps/cms` has its own homepage, layout, navigation, login and build output; `apps/web` retains its own entry point. Both share the platform API, article bodies, publications and audio, without a second backend or database. See [CMS frontend](docs/CMS_FRONTEND.md) for independent build/preview and security boundaries, and [CMS features](docs/CMS_V1.md) for the model and JSON import examples.
 
-本地隔离预览：工作台 http://127.0.0.1:4382/ ；CMS http://127.0.0.1:4384/ 。真实数据、收费 TTS、AI 凭证与生产部署未接入。
+Documented isolated previews: workbench at http://127.0.0.1:4382/ and CMS at http://127.0.0.1:4384/. Real data, paid TTS, AI credentials and production deployment are not connected in these previews.
 
-分类管理提供父子树、排序、直接文章计数、未分类入口与按版本检查的批量归类。使用与数据边界见 [分类管理说明](docs/CMS_CATEGORIES.md)。
+Category management offers parent/child trees, ordering, direct article counts, uncategorized articles and revision-checked bulk categorization. See [categories](docs/CMS_CATEGORIES.md).
 
-阅读库提供基于发布快照的分类浏览、三行正文预览和卡片内按需播放，数量与分页保持一致；历史分类变更不改写旧发布。详见 [阅读库说明](docs/CMS_READING.md)。
+The reading library browses published category snapshots, shows three-line body previews and plays audio on demand inside cards, with matching counts and pagination. Historical category edits do not rewrite old releases. See [reading library](docs/CMS_READING.md).
+
+CMS article management combines publication-state and missing-audio filters with search and categories. The draft filter applies to the CMS website; Zhiyue devices continue to read published articles only. See [article status filtering](docs/ZHIYUE_ARTICLE_STATUS.md).
