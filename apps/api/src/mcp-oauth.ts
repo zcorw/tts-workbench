@@ -10,7 +10,11 @@ import type { ArticleService } from "./articles.js";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 
-export const MCP_SCOPES = ["cms:read", "cms:drafts:create"];
+export const MCP_SCOPES = [
+  "cms:read",
+  "cms:drafts:create",
+  "cms:drafts:update",
+];
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");

@@ -19,8 +19,12 @@ interface Authorization {
   scopes: string[];
   resource: string;
 }
-const scopeName = (scope: string) =>
-  scope === 'cms:read' ? '读取本人全部文章草稿、栏目和标签' : '批量创建文章草稿、查询创建结果';
+const scopeNames: Record<string, string> = {
+  'cms:read': '读取本人全部文章草稿、栏目和标签',
+  'cms:drafts:create': '批量创建文章草稿、查询创建结果',
+  'cms:drafts:update': '修改本人文章的工作草稿正文',
+};
+const scopeName = (scope: string) => scopeNames[scope] ?? scope;
 
 export function CmsMcp({ accountId }: { accountId: string }) {
   const location = useLocation();
@@ -89,7 +93,7 @@ export function CmsMcp({ accountId }: { accountId: string }) {
         <p role="status">正在检查连接…</p>
       ) : (
         <>
-          <p>在 ChatGPT 会话中保存文章草稿。每批最多 20 篇，保存后可在知声继续编辑。</p>
+          <p>在 ChatGPT 会话中保存或修改文章草稿。创建每批最多 20 篇，修改正文需单独授权。</p>
           {consent && (
             <div className="site-empty" aria-label="MCP 授权请求">
               <h2>允许此客户端访问你的知声账户？</h2>
@@ -105,7 +109,10 @@ export function CmsMcp({ accountId }: { accountId: string }) {
                       <li key={scope}>{scopeName(scope)}</li>
                     ))}
                   </ul>
-                  <p>本次授权最长 7 天，可随时撤销。创建的文章保持草稿，不会自动发布或生成音频。</p>
+                  <p>
+                    本次授权最长 7
+                    天，可随时撤销。正文修改仅保存到工作草稿，已发布版本保持不变，不会自动发布或生成音频。
+                  </p>
                   <p>授权后返回：{new URL(authorization.data.redirectUri).origin}</p>
                   <p>客户端读取的内容会进入其会话，撤销后无法收回已读取的数据。</p>
                   <div className="cms-actions">

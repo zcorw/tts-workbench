@@ -9795,6 +9795,7 @@ components:
           scopes:
             cms:read: Read own article drafts and taxonomy
             cms:drafts:create: Create private drafts and query batch receipts
+            cms:drafts:update: Update own working draft body with an expected article revision
     zhiyueDeviceBearer:
       type: http
       scheme: bearer

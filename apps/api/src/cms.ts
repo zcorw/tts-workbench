@@ -64,6 +64,11 @@ const updateSchema = articleInputSchema.extend({
   expectedRevision: revision,
   cms: autoMetaInput.extend({ expectedRevision: z.number().int().min(0) }),
 });
+export const articleBodyUpdateSchema = articleInputSchema
+  .pick({ text: true })
+  .extend({
+    expectedRevision: revision,
+  });
 const taxonomySchema = z.strictObject({ name, slug });
 const sortOrder = z.number().int().min(0).max(2147483647);
 const categorySchema = taxonomySchema.extend({
@@ -634,6 +639,22 @@ export class CmsService {
         expectedRevision: dto.expectedRevision,
       });
       await this.saveMeta(c, owner, id, dto.cms, dto.cms.expectedRevision);
+      return this.detail(c, owner, id);
+    });
+  }
+
+  async updateBody(owner: string, id: string, input: unknown) {
+    uuid.parse(id);
+    const dto = articleBodyUpdateSchema.parse(input);
+    return this.write(owner, async (c) => {
+      // Read the title under the shared account lock so a body-only write
+      // cannot overwrite a concurrent title or CMS metadata edit.
+      const current = await this.articles.detailInTransaction(c, owner, id);
+      await this.articles.updateInTransaction(c, owner, id, {
+        title: current.title,
+        text: dto.text,
+        expectedRevision: dto.expectedRevision,
+      });
       return this.detail(c, owner, id);
     });
   }
